@@ -86,8 +86,10 @@ export default function PublicBoard() {
 
   return (
     <div class="site-shell">
+      <aside class="side-label side-label-left" aria-hidden="true">wnt // wishlist</aside>
+      <aside class="side-label side-label-right" aria-hidden="true">ideas in motion</aside>
       <header class="topbar">
-        <a class="brand" href="/" aria-label="Wasting No Time Wishlist home"><span class="brand-mark">W</span><span>WASTING NO TIME <b>/</b> WISHLIST</span></a>
+        <a class="brand" href="/" aria-label="Wasting No Time Wishlist home"><span class="brand-mark">wl</span><span>wnt / wishlist</span></a>
           <div class="header-actions"><span class="public-label"><span aria-hidden="true" class="online-dot" /> PUBLIC DEMAND BOARD</span><button class="suggest-button" disabled={!sessionLoaded()} onClick={()=>{setSuggestApp(apps()?.[0]?.id??"");setSuggestOpen(true);}}>Suggest an idea</button><Show when={session()?.verified}><button class="signout-button" disabled={!sessionLoaded()} onClick={async()=>{await api("session",{method:"DELETE"});setSession(null);}}>Sign out</button></Show></div>
       </header>
 
@@ -102,6 +104,7 @@ export default function PublicBoard() {
             <span class="principle-icon" aria-hidden="true">↗</span>
             <p>Votes show demand.<br /><strong>WNT decides what to build.</strong></p>
           </aside>
+          <div class="orbit orbit-one" aria-hidden="true" /><div class="orbit orbit-two" aria-hidden="true" />
         </section>
 
         <section class="board" aria-label="Wishlist board">
