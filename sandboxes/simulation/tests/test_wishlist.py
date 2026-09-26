@@ -5,6 +5,7 @@ import pytest
 from app.application.wishlist import Wishlist
 from app.domain.model import DomainError, Event
 from app.infrastructure.fakes import FakeClock, FakeOtpSender, MemoryEventStore, SequentialIds
+from app.interfaces.public_board import PublicBoardAdapter, PublicRequest
 
 
 @pytest.fixture
@@ -156,3 +157,18 @@ def test_public_links_reject_unsafe_schemes(model):
     feature = service.admin_create_feature("admin", app, "feature", "Feature")
     with pytest.raises(DomainError):
         service.admin_change_feature_status("admin", feature, "delivered", delivery_url="javascript:alert(1)")
+
+
+def test_public_board_adapter_routes_and_errors(model):
+    service, _ = model
+    app = service.admin_create_app("admin", "cat-care", "Cat Care")
+    feature = service.admin_create_feature("admin", app, "sharing", "Family sharing")
+    adapter = PublicBoardAdapter(service)
+    apps = adapter.handle(PublicRequest("GET", "/v1/apps"))
+    assert apps.status == 200 and apps.body["apps"][0]["slug"] == "cat-care"
+    board = adapter.handle(PublicRequest("GET", "/v1/features", {"app": "cat-care"}))
+    assert board.status == 200 and board.body["features"][0]["id"] == feature
+    assert "email" not in str(board.body)
+    assert adapter.handle(PublicRequest("GET", "/v1/features", {"view": "upcoming"})).status == 400
+    assert adapter.handle(PublicRequest("POST", "/v1/apps")).status == 405
+    assert adapter.handle(PublicRequest("GET", "/unknown")).status == 404

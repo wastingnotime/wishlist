@@ -16,4 +16,4 @@ Run the complete acceptance scenario and print its semantic observations:
 PYTHONPATH="$HOME/.wnt/runtime/mrl:sandboxes/simulation/src" python3 sandboxes/simulation/tools/run_scenario.py
 ```
 
-The model is exploratory. A later model release must evaluate gaps and publish technology adapter contracts before app projects consume them.
+Model version 0.1.0 and its public board read adapter are released. The contract is described in [`docs/adapters/public-board.md`](docs/adapters/public-board.md); EGD and the release decision are recorded under `work/changes/wishlist-model-release-0.1.0/`. App projects must still validate their technology-specific behavior and security boundaries.
