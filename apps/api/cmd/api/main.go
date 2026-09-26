@@ -16,11 +16,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	databasePath := os.Getenv("WISHLIST_DB_PATH")
-	if databasePath == "" {
-		databasePath = "./wishlist.db"
-	}
-	store, err := infrastructure.OpenSQLite(databasePath, seed)
+	databaseURL := os.Getenv("WISHLIST_DATABASE_URL")
+	store, err := infrastructure.OpenPostgres(databaseURL, seed)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,7 +39,9 @@ func main() {
 	addr := os.Getenv("WISHLIST_API_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:8080"
-		if production { addr = ":8080" }
+		if production {
+			addr = ":8080"
+		}
 	}
 	secureCookies := production
 	adminToken := os.Getenv("WISHLIST_ADMIN_TOKEN")

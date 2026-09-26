@@ -1,14 +1,16 @@
 # Wishlist API
 
-Go API for the public board, verified visitor writes, and admin management. SQLite stores catalog data, sessions, votes, and private suggestions. A unique database key enforces one vote per identity per feature.
+Go API for the public board, verified visitor writes, and admin management. PostgreSQL stores catalog data, sessions, votes, and private suggestions. A unique database key enforces one vote per identity per feature.
 
 ## Run locally
 
+Start the repository's local PostgreSQL container with `docker compose up -d --wait postgres`, then run:
+
 ```bash
-go run ./cmd/api
+WISHLIST_DATABASE_URL='postgres://wishlist:local-wishlist-only@127.0.0.1:5439/wishlist?sslmode=disable' go run ./cmd/api
 ```
 
-The API listens on `127.0.0.1:8080` and persists to `./wishlist.db`. Set `WISHLIST_DB_PATH`, `WISHLIST_API_ADDR`, `WISHLIST_ADMIN_TOKEN`, and `WISHLIST_OTP_SECRET` to override local defaults. Local OTP codes are printed to the API terminal without the recipient address. The local admin token is `local-development-admin-token`; set a private value before using the app with real data.
+The API listens on `127.0.0.1:8080`. `WISHLIST_DATABASE_URL` is required; startup applies versioned schema migrations and seeds only missing sample rows. Set `WISHLIST_API_ADDR`, `WISHLIST_ADMIN_TOKEN`, and `WISHLIST_OTP_SECRET` as needed. Local OTP codes are printed to the API terminal without the recipient address. The local admin token is `local-development-admin-token`; set a private value before using the app with real data.
 
 Production startup intentionally fails until a production email OTP adapter exists. The local code logger and default keys are development-only.
 
@@ -31,6 +33,4 @@ Suggestions stay private until an admin accepts them. Admin-created and accepted
 
 ## Validate
 
-```bash
-go test ./...
-```
+From the repository root, `make test` runs the API and browser suites with a disposable PostgreSQL container. To run the API suite alone, set `WISHLIST_TEST_DATABASE_URL` to a PostgreSQL database whose user can create schemas, then run `go test ./...`. Each API test uses its own temporary schema.

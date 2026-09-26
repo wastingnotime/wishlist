@@ -2,16 +2,63 @@ package httpapi
 
 import (
 	"context"
+	"crypto/rand"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/wastingnotime/wishlist/apps/api/internal/application"
+	"github.com/wastingnotime/wishlist/apps/api/internal/domain"
 	"github.com/wastingnotime/wishlist/apps/api/internal/infrastructure"
 )
+
+func testPostgresStore(t *testing.T, board domain.Board) *infrastructure.PostgresStore {
+	t.Helper()
+	databaseURL := os.Getenv("WISHLIST_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set WISHLIST_TEST_DATABASE_URL to run PostgreSQL API tests")
+	}
+	suffix := make([]byte, 8)
+	if _, err := rand.Read(suffix); err != nil {
+		t.Fatal(err)
+	}
+	schema := "wishlist_test_" + hex.EncodeToString(suffix)
+	admin, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = admin.Exec(`CREATE SCHEMA ` + schema); err != nil {
+		_ = admin.Close()
+		t.Fatal(err)
+	}
+	var store *infrastructure.PostgresStore
+	t.Cleanup(func() {
+		if store != nil {
+			_ = store.Close()
+		}
+		_, _ = admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`)
+		_ = admin.Close()
+	})
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := parsed.Query()
+	query.Set("search_path", schema)
+	parsed.RawQuery = query.Encode()
+	store, err = infrastructure.OpenPostgres(parsed.String(), board)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store
+}
 
 type testClock struct{}
 
@@ -27,11 +74,7 @@ func testServer(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := infrastructure.OpenSQLite(":memory:", board)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := testPostgresStore(t, board)
 	visitor := application.NewVisitor(store, &testSender{}, testClock{}, "test-secret")
 	return New(application.NewBoard(store), visitor, false).Handler()
 }
@@ -121,11 +164,7 @@ func TestPublicResponsesContainNoIdentityOrSuggestionFields(t *testing.T) {
 
 func TestOTPVoteAndPrivateSuggestionFlow(t *testing.T) {
 	board, _ := infrastructure.SampleBoard()
-	store, err := infrastructure.OpenSQLite(":memory:", board)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := testPostgresStore(t, board)
 	sender := &testSender{}
 	visitor := application.NewVisitor(store, sender, testClock{}, "test-secret")
 	handler := New(application.NewBoard(store), visitor, false).Handler()
@@ -179,11 +218,7 @@ func TestOTPVoteAndPrivateSuggestionFlow(t *testing.T) {
 func TestAdminModerationAndLifecycleKeepVotes(t *testing.T) {
 	t.Setenv("WISHLIST_ADMIN_TOKEN", "test-admin-token")
 	board, _ := infrastructure.SampleBoard()
-	store, err := infrastructure.OpenSQLite(":memory:", board)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := testPostgresStore(t, board)
 	sender := &testSender{}
 	visitor := application.NewVisitor(store, sender, testClock{}, "secret")
 	handler := New(application.NewBoard(store), visitor, false, store).Handler()
@@ -217,7 +252,7 @@ func TestAdminModerationAndLifecycleKeepVotes(t *testing.T) {
 			ID string `json:"id"`
 		} `json:"suggestions"`
 	}
-	if err = json.Unmarshal(queue.Body.Bytes(), &q); err != nil || len(q.Suggestions) != 1 {
+	if err := json.Unmarshal(queue.Body.Bytes(), &q); err != nil || len(q.Suggestions) != 1 {
 		t.Fatalf("pending queue: %s (%v)", queue.Body, err)
 	}
 	accepted := request(http.MethodPost, "/v1/admin/suggestions/"+q.Suggestions[0].ID+"/accept", `{"slug":"care-timeline-export","title":"Care timeline export","description":"Let me print a visit-ready timeline."}`, nil, true)

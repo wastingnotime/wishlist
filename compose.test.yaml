@@ -1,0 +1,15 @@
+name: wishlist-e2e
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: wishlist_test
+      POSTGRES_USER: wishlist_test
+      POSTGRES_PASSWORD: wishlist_test
+    ports:
+      - "127.0.0.1:55439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wishlist_test -d wishlist_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
