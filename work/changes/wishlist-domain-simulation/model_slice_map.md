@@ -2,11 +2,9 @@
 
 | Slice | Domain concern | Current simulation status |
 | --- | --- | --- |
-| 01 | Apps and public board | Modeled |
-| 02 | Admin feature lifecycle | Modeled in shared environment |
-| 03 | Email OTP identity | Modeled with fake sender and clock |
-| 04 | Voting and ranking | Modeled with uniqueness invariant |
-| 05 | Suggestions and moderation | Modeled privately |
-| 06 | Delivered links | Modeled in public projection |
+| 01 | Apps and public board | Released in 0.1.0 with executable anonymous read adapter |
+| 02 | Visitor OTP, sessions, vote toggle, private suggestion submission | Released in 0.2.0 with executable visitor adapter |
+| 03 | Admin suggestion moderation and feature lifecycle | Domain behavior modeled; admin adapter contract remains to be built |
+| 04 | Database/session/email production contracts | Deferred to later simulation and technology refinement |
 
-The combined first runnable scenario is documented in `sandboxes/simulation/docs/slices/01-demand-signal.md`. Channel and persistence adapter contracts require later refinement and model release.
+The shared behavior is exercised in `sandboxes/simulation/docs/slices/01-demand-signal.md` and `02-visitor-writes.md`. Production persistence and security are explicitly outside the released simulation adapter contracts.

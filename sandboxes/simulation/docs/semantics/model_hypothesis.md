@@ -13,7 +13,7 @@ Wishlist senses public demand for WNT products. Votes never select, schedule, or
 - **Vote:** one active endorsement by one verified identity for one feature. Only `voting` features accept new votes.
 - **Admin:** separately authenticated authority for publishing and lifecycle decisions.
 
-The simulation event history is private internal evidence. Public queries are explicit projections that omit email, OTP material, sessions, and private suggestions.
+The simulation event history is private internal evidence. Public queries are explicit projections that omit email, OTP material, sessions, and private suggestions. A verified visitor adapter may return only the current identity's active feature ids to restore vote state; the web transport stores the opaque session in a cookie rather than exposing the session id in a response body.
 
 ## State transitions
 

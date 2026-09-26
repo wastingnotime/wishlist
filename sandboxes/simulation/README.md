@@ -16,4 +16,4 @@ Run the complete acceptance scenario and print its semantic observations:
 PYTHONPATH="$HOME/.wnt/runtime/mrl:sandboxes/simulation/src" python3 sandboxes/simulation/tools/run_scenario.py
 ```
 
-Model version 0.1.0 and its public board read adapter are released. The contract is described in [`docs/adapters/public-board.md`](docs/adapters/public-board.md); EGD and the release decision are recorded under `work/changes/wishlist-model-release-0.1.0/`. App projects must still validate their technology-specific behavior and security boundaries.
+Model version 0.1.0 released the public board read adapter. Visitor identity and write behavior is refined as model version 0.2.0; see [`docs/adapters/visitor-writes.md`](docs/adapters/visitor-writes.md) and its EGD/release record under `work/changes/wishlist-model-release-0.2.0/`. App projects must validate their technology-specific behavior and security boundaries.

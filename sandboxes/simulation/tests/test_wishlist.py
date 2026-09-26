@@ -6,6 +6,7 @@ from app.application.wishlist import Wishlist
 from app.domain.model import DomainError, Event
 from app.infrastructure.fakes import FakeClock, FakeOtpSender, MemoryEventStore, SequentialIds
 from app.interfaces.public_board import PublicBoardAdapter, PublicRequest
+from app.interfaces.visitor_adapter import VisitorAdapter, VisitorRequest
 
 
 @pytest.fixture
@@ -172,3 +173,40 @@ def test_public_board_adapter_routes_and_errors(model):
     assert adapter.handle(PublicRequest("GET", "/v1/features", {"view": "upcoming"})).status == 400
     assert adapter.handle(PublicRequest("POST", "/v1/apps")).status == 405
     assert adapter.handle(PublicRequest("GET", "/unknown")).status == 404
+
+
+def test_visitor_adapter_verifies_votes_toggles_and_keeps_suggestion_private(model):
+    service, sender = model
+    app = service.admin_create_app("admin", "cat-care", "Cat Care")
+    feature = service.admin_create_feature("admin", app, "sharing", "Family sharing")
+    adapter = VisitorAdapter(service)
+
+    anonymous = adapter.handle(VisitorRequest("GET", "/v1/session"))
+    assert anonymous.status == 401
+    requested = adapter.handle(VisitorRequest("POST", "/v1/otp", body={"email": "V@example.com"}))
+    assert requested.status == 202 and requested.body == {"requested": True}
+    invalid_code = adapter.handle(VisitorRequest(
+        "POST", "/v1/otp/verify", body={"email": "v@example.com", "code": "wrong"}))
+    assert invalid_code.status == 400 and invalid_code.body == {"error": {"code": "invalid_or_expired_code"}}
+    verified_response = adapter.handle(VisitorRequest(
+        "POST", "/v1/otp/verify", body={"email": "v@example.com", "code": sender.delivered["v@example.com"]}))
+    assert verified_response.status == 200 and "session_id" not in verified_response.body
+    session_id = verified_response.establish_session
+    assert session_id
+    known_address = adapter.handle(VisitorRequest("POST", "/v1/otp", body={"email": "V@example.com"}))
+    assert known_address.status == requested.status and known_address.body == requested.body
+
+    voted = adapter.handle(VisitorRequest("POST", f"/v1/features/{feature}/vote", session_id=session_id))
+    assert voted.body == {"voted": True, "vote_count": 1}
+    state = adapter.handle(VisitorRequest("GET", "/v1/session", session_id=session_id))
+    assert state.body["vote_feature_ids"] == [feature]
+    removed = adapter.handle(VisitorRequest("POST", f"/v1/features/{feature}/vote", session_id=session_id))
+    assert removed.body == {"voted": False, "vote_count": 0}
+
+    submitted = adapter.handle(VisitorRequest("POST", "/v1/suggestions",
+                                              body={"app_id": app, "title": "Private idea"},
+                                              session_id=session_id))
+    assert submitted.status == 201
+    public_rows = service.list_features("voting")
+    assert len(public_rows) == 1 and public_rows[0]["vote_count"] == 0
+    assert all(row["title"] != "Private idea" for row in public_rows)

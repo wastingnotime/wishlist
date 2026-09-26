@@ -10,12 +10,14 @@ from mrl_simulation_runtime.scenario import InitialScheduledAction, Scenario
 
 from app.application.wishlist import Wishlist
 from app.infrastructure.fakes import FakeClock, FakeOtpSender, MemoryEventStore, SequentialIds
+from app.interfaces.visitor_adapter import VisitorAdapter, VisitorRequest
 
 
 def create_simulation() -> Scenario:
     start = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
     store, clock, ids, sender = MemoryEventStore(), FakeClock(start), SequentialIds(), FakeOtpSender()
     wishlist = Wishlist(store, clock, ids, sender, admin_key="admin-simulation", otp_secret="simulation-secret")
+    visitors = VisitorAdapter(wishlist)
     refs: dict[str, str] = {}
     observed = 0
 
@@ -41,12 +43,18 @@ def create_simulation() -> Scenario:
         refs["b"] = wishlist.admin_create_feature("admin-simulation", refs["app"], "export-health", "Export health history")
 
     def verify_and_vote():
-        wishlist.request_otp(" Visitor@Example.com ")
-        refs["session"] = wishlist.verify_otp("visitor@example.com", sender.delivered["visitor@example.com"])
-        wishlist.vote_for_feature(refs["session"], refs["a"])
+        visitors.handle(VisitorRequest("POST", "/v1/otp", body={"email": " Visitor@Example.com "}))
+        verified = visitors.handle(VisitorRequest(
+            "POST", "/v1/otp/verify",
+            body={"email": "visitor@example.com", "code": sender.delivered["visitor@example.com"]}))
+        refs["session"] = verified.establish_session or ""
+        visitors.handle(VisitorRequest("POST", f"/v1/features/{refs['a']}/vote", session_id=refs["session"]))
 
     def suggest():
-        refs["suggestion"] = wishlist.submit_suggestion(refs["session"], refs["app"], "Medication reminders")
+        submitted = visitors.handle(VisitorRequest("POST", "/v1/suggestions",
+                                                    body={"app_id": refs["app"], "title": "Medication reminders"},
+                                                    session_id=refs["session"]))
+        refs["suggestion"] = submitted.body["suggestion_id"]
         assert len(wishlist.list_features("voting", "cat-care")) == 2
 
     def publish():
