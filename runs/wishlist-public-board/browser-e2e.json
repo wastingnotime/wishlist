@@ -1,0 +1,39 @@
+{
+  "browser": "chromium",
+  "results": [
+    {
+      "browser": "chromium",
+      "flow": "public board filters app and lifecycle, preserves URL state, and refreshes",
+      "base_url": "http://127.0.0.1:5173",
+      "final_page_url": "http://127.0.0.1:5173/?view=delivered&app=cat-care",
+      "status": "passed",
+      "outcome_facts": {
+        "voting_view_loaded": true,
+        "app_filter": "cat-care",
+        "filtered_views": [
+          "voting",
+          "producing",
+          "delivered"
+        ],
+        "url_state_survived_reload": true,
+        "delivery_link_visible": true,
+        "test_passed": true
+      },
+      "console_errors": []
+    },
+    {
+      "browser": "chromium",
+      "flow": "valid app without features shows an empty state",
+      "base_url": "http://127.0.0.1:5173",
+      "final_page_url": "http://127.0.0.1:5173/?view=delivered&app=cat-care-missing",
+      "status": "passed",
+      "outcome_facts": {
+        "empty_state_visible": true,
+        "app_filter": "cat-care-missing",
+        "unrelated_features_hidden": true,
+        "test_passed": true
+      },
+      "console_errors": []
+    }
+  ]
+}

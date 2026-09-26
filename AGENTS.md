@@ -1,38 +1,29 @@
 # Repository Guidelines
 
-This repository is the public WNT wishlist.
+This repository owns the WNT Wishlist web product and its domain simulation. Wishlist votes are a public demand signal; they do not commit WNT to build or schedule a feature.
 
 ## Repository Role
 
-- Own proposed ideas, requests, and their discussion for Wasting No Time.
-- Treat entries as proposals until an owning repository accepts them.
+- Own Wishlist product behavior, application contracts, and implementation.
+- Keep the MRL simulation as the behavioral source for synchronized application work.
+- Keep API, browser, and any later MCP adapters within their project boundaries.
+- Keep durable product decisions and change evidence in Markdown under `work/`.
 - Keep shared WNT guidance in user-space capabilities and the WNT MCP surface.
-- Keep durable repository decisions in Markdown.
-- Expose stable contracts before implementation details.
-
-## Non-Responsibilities
-
-- Do not treat wishlist entries as product commitments or implementation contracts.
-- Keep product decisions and implementation in their owning repositories.
-- Do not copy WNT toolkit policy into this repository.
-- Do not treat `wnt-tools` as this repository's source of truth.
-- Do not depend on repository-local WNT installs.
-- Do not make shared WNT guidance the responsibility of this repository.
 
 ## Scope Boundaries
 
-- Root `AGENTS.md` defines this repository's identity and visitor guidance.
-- `README.md` explains the public entry point.
-- GitHub issues may hold individual wishlist proposals and discussion.
-- This repository exports no implementation contracts.
-- `work/` may hold active change artifacts if the repository uses them.
-- Any WNT shared behavior should remain discoverable from user-space, not copied here.
+- `sandboxes/simulation/` owns model extraction, refinement, validation, EGD, and model release.
+- `apps/api/` owns authoritative HTTP behavior and persistence.
+- `apps/web/` owns browser experience and a thin same-origin BFF.
+- Public API responses must not expose visitor email, OTP, session, or moderation data.
+- Do not copy WNT toolkit policy into the repository or depend on repository-local WNT installs.
 
-## Visitor Guidance
+## Working Rules
 
-- Read `README.md` before adding or acting on a proposal.
-- Check the owning repository before treating a proposal as accepted work.
-- Use WNT coordination workflows for changes that span repositories.
+- Read `README.md` and the active change artifacts before extending product behavior.
+- Use WNT capabilities for shared project shapes, security, and delivery guidance.
+- Use conventional commit prefixes for committed changes.
+- Keep the demand-signal principle explicit: ranking informs WNT judgment and never changes lifecycle state automatically.
 
 ## Working Rules
 
