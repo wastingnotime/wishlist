@@ -6,6 +6,7 @@ from app.application.wishlist import Wishlist
 from app.domain.model import DomainError, Event
 from app.infrastructure.fakes import FakeClock, FakeOtpSender, MemoryEventStore, SequentialIds
 from app.interfaces.public_board import PublicBoardAdapter, PublicRequest
+from app.interfaces.admin_adapter import AdminAdapter, AdminRequest
 from app.interfaces.visitor_adapter import VisitorAdapter, VisitorRequest
 
 
@@ -182,7 +183,7 @@ def test_visitor_adapter_verifies_votes_toggles_and_keeps_suggestion_private(mod
     adapter = VisitorAdapter(service)
 
     anonymous = adapter.handle(VisitorRequest("GET", "/v1/session"))
-    assert anonymous.status == 401
+    assert anonymous.status == 200 and anonymous.body == {"verified": False, "vote_feature_ids": []}
     requested = adapter.handle(VisitorRequest("POST", "/v1/otp", body={"email": "V@example.com"}))
     assert requested.status == 202 and requested.body == {"requested": True}
     invalid_code = adapter.handle(VisitorRequest(
@@ -210,3 +211,25 @@ def test_visitor_adapter_verifies_votes_toggles_and_keeps_suggestion_private(mod
     public_rows = service.list_features("voting")
     assert len(public_rows) == 1 and public_rows[0]["vote_count"] == 0
     assert all(row["title"] != "Private idea" for row in public_rows)
+
+
+def test_admin_adapter_protects_catalog_and_moderates_private_suggestions(model):
+    service, _ = model
+    adapter = AdminAdapter(service)
+    denied = adapter.handle(AdminRequest("POST", "/v1/admin/apps", {"slug": "new-app", "name": "New App"}))
+    assert denied.status == 401
+    created = adapter.handle(AdminRequest("POST", "/v1/admin/apps", {
+        "slug": "cat-care", "name": "Cat Care"}, token="admin"))
+    assert created.status == 201
+    app_id = created.body["id"]
+    feature = adapter.handle(AdminRequest("POST", "/v1/admin/features", {
+        "app_id": app_id, "slug": "family-sharing", "title": "Family sharing"}, token="admin"))
+    assert feature.status == 201
+    session = verified(model)
+    suggestion = service.submit_suggestion(session, app_id, "Shared calendar", "Bring the household together.")
+    queue = adapter.handle(AdminRequest("GET", "/v1/admin/suggestions", token="admin"))
+    assert queue.body["suggestions"][0]["id"] == suggestion
+    merged = adapter.handle(AdminRequest("POST", f"/v1/admin/suggestions/{suggestion}/merge",
+        {"feature_id": feature.body["id"]}, token="admin"))
+    assert merged.status == 204
+    assert adapter.handle(AdminRequest("GET", "/v1/admin/suggestions", token="admin")).body["suggestions"] == []

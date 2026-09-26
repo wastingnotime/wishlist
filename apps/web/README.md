@@ -1,17 +1,17 @@
 # Wishlist web
 
-SolidStart browser app with a same-origin BFF. It owns the public board view, URL state, and browser refresh behavior. The API remains authoritative for feature and app data.
+SolidStart browser app with a same-origin BFF. The public board supports app filters, feature lifecycle views, vote actions, email OTP verification, and private suggestion submission. The `/admin` page supports app management, feature publishing and lifecycle, and pending suggestion review.
 
 ## Run locally
 
-Start the API in one terminal:
+In one terminal, start the API:
 
 ```bash
 cd apps/api
 go run ./cmd/api
 ```
 
-Start the web app in another terminal:
+In another terminal, start the web app:
 
 ```bash
 cd apps/web
@@ -19,13 +19,11 @@ npm install
 npm run dev -- --port 5173
 ```
 
-Set `WISHLIST_API_URL` if the API is not at `http://127.0.0.1:8080`.
+The API persists to `apps/api/wishlist.db` relative to its working directory. Local OTP codes appear in the API terminal. Visit `/admin` and use the local token `local-development-admin-token`. Configure `WISHLIST_API_URL` if the API is not at `http://127.0.0.1:8080`.
 
-## Current slice
+The API's OTP logger and local admin/OTP keys are for development only. Production API startup is blocked until a real email OTP sender is configured.
 
-The public board supports Voting, Producing, and Delivered views, filtering by app, URL-preserved selection, and refresh. The API currently starts with deterministic sample data in memory. Visitor verification, votes, suggestions, admin tools, and durable persistence are not implemented in this slice.
-
-## Validation
+## Validate
 
 ```bash
 npm run typecheck
@@ -33,4 +31,4 @@ npm run build
 npm run test:e2e
 ```
 
-The browser tests start both the API and web dev server and cover app filtering across views, URL restoration after reload, delivery links, and empty states.
+The browser tests cover the public filters, lifecycle views, URL restoration, delivery links, and empty states. API tests exercise OTP, votes, privacy, admin moderation, and vote preservation through lifecycle transitions.

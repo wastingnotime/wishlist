@@ -1,5 +1,5 @@
-import { A, useLocation, useNavigate } from "@solidjs/router";
-import { For, Show, createMemo, createResource } from "solid-js";
+import { A, useLocation } from "@solidjs/router";
+import { For, Show, createMemo, createResource, createSignal, onMount } from "solid-js";
 import { ApiError, api } from "../lib/api";
 
 type View = "voting" | "producing" | "delivered";
@@ -37,7 +37,20 @@ function dateLabel(value: string | null) {
 
 export default function PublicBoard() {
   const location = useLocation();
-  const navigate = useNavigate();
+  const [session, setSession] = createSignal<{verified:boolean; vote_feature_ids:string[]}|null>(null);
+  const [ready,setReady]=createSignal(false);
+  const [sessionLoaded,setSessionLoaded]=createSignal(false);
+  const [authEmail, setAuthEmail] = createSignal("");
+  const [otpCode, setOtpCode] = createSignal("");
+  const [authStep, setAuthStep] = createSignal<"closed"|"email"|"code">("closed");
+  const [pendingVote, setPendingVote] = createSignal("");
+  const [suggestOpen, setSuggestOpen] = createSignal(false);
+  const [suggestApp, setSuggestApp] = createSignal("");
+  const [suggestTitle, setSuggestTitle] = createSignal("");
+  const [suggestDescription, setSuggestDescription] = createSignal("");
+  const [notice, setNotice] = createSignal("");
+  const [busy, setBusy] = createSignal(false);
+  onMount(() => { setReady(true);void api<{verified:boolean;vote_feature_ids:string[]}>("session").then(setSession).catch(()=>setSession(null)).finally(()=>setSessionLoaded(true)); });
   const selection = createMemo(() => {
     const query = new URLSearchParams(location.search);
     return { view: safeView(query.get("view") ?? undefined), app: query.get("app") ?? "" };
@@ -52,7 +65,17 @@ export default function PublicBoard() {
     return (await api<{ features: Feature[] }>(`features?${query.toString()}`)).features;
   });
 
-  const chooseApp = (slug: string) => navigate(boardURL(selection().view, slug));
+  const chooseApp = (slug: string) => { window.location.assign(boardURL(selection().view, slug)); };
+  const requireIdentity = (action: string) => { if (!session()?.verified) { setPendingVote(action); setAuthStep("email"); return false; } return true; };
+  const toggleVote = async (feature: Feature) => {
+    if (!requireIdentity(feature.id)) return;
+    setBusy(true); try { await api(`features/${feature.id}/vote`, {method:"POST",body:"{}"}); const s=await api<{verified:boolean;vote_feature_ids:string[]}>("session"); setSession(s); await refetch(); }
+    catch { setNotice("Your vote could not be saved. Please try again."); } finally { setBusy(false); }
+  };
+  const requestCode = async (event: SubmitEvent) => { event.preventDefault(); setBusy(true); try { await api("otp",{method:"POST",body:JSON.stringify({email:authEmail()})}); setAuthStep("code"); } catch { setNotice("We could not send a sign-in code. Check the email address and try again."); } finally { setBusy(false); } };
+  const verifyCode = async (event: SubmitEvent) => { event.preventDefault(); setBusy(true); try { await api("otp/verify",{method:"POST",body:JSON.stringify({email:authEmail(),code:otpCode()})}); const s=await api<{verified:boolean;vote_feature_ids:string[]}>("session");setSession(s);setAuthStep("closed");const action=pendingVote();setPendingVote("");if(action==="suggest") setSuggestOpen(true); else if(action) await toggleVoteById(action); } catch { setNotice("That code is invalid or expired. Request a new one and try again."); } finally { setBusy(false); } };
+  const toggleVoteById = async (id:string) => { setBusy(true); try { await api(`features/${id}/vote`,{method:"POST",body:"{}"});setSession(await api<{verified:boolean;vote_feature_ids:string[]}>("session"));await refetch(); }catch{setNotice("Your vote could not be saved. Please try again.");}finally{setBusy(false);} };
+  const submitSuggestion = async (event: SubmitEvent) => { event.preventDefault(); if(!requireIdentity("suggest")) return; setBusy(true);try{await api("suggestions",{method:"POST",body:JSON.stringify({app_id:suggestApp(),title:suggestTitle(),description:suggestDescription()})});setSuggestOpen(false);setSuggestTitle("");setSuggestDescription("");setNotice("Thanks. Your suggestion is private and will be reviewed by WNT.");}catch{setNotice("Your suggestion could not be submitted. Please try again.");}finally{setBusy(false);} };
   const failure = () => board.error ?? apps.error;
   const errorMessage = () => {
     const error = failure();
@@ -65,7 +88,7 @@ export default function PublicBoard() {
     <div class="site-shell">
       <header class="topbar">
         <a class="brand" href="/" aria-label="Wasting No Time Wishlist home"><span class="brand-mark">W</span><span>WASTING NO TIME <b>/</b> WISHLIST</span></a>
-        <span class="public-label"><span aria-hidden="true" class="online-dot" /> PUBLIC DEMAND BOARD</span>
+          <div class="header-actions"><span class="public-label"><span aria-hidden="true" class="online-dot" /> PUBLIC DEMAND BOARD</span><button class="suggest-button" disabled={!sessionLoaded()} onClick={()=>{setSuggestApp(apps()?.[0]?.id??"");setSuggestOpen(true);}}>Suggest an idea</button><Show when={session()?.verified}><button class="signout-button" disabled={!sessionLoaded()} onClick={async()=>{await api("session",{method:"DELETE"});setSession(null);}}>Sign out</button></Show></div>
       </header>
 
       <main>
@@ -84,7 +107,7 @@ export default function PublicBoard() {
         <section class="board" aria-label="Wishlist board">
           <div class="board-toolbar">
             <label class="app-filter"><span>APP</span>
-              <select aria-label="Filter by app" value={selection().app} onChange={(event) => chooseApp(event.currentTarget.value)}>
+              <select aria-label="Filter by app" disabled={!ready()} value={selection().app} onInput={(event) => chooseApp(event.currentTarget.value)}>
                 <option value="">All apps</option>
                 <For each={apps()}>{(app) => <option value={app.slug}>{app.name}</option>}</For>
               </select>
@@ -116,6 +139,7 @@ export default function PublicBoard() {
                     <h3>{feature.title}</h3><p>{feature.description}</p>
                     <Show when={feature.status === "delivered" && feature.delivered_at}><time class="delivered-date" dateTime={feature.delivered_at!}>Shipped {dateLabel(feature.delivered_at)}</time></Show>
                   </div>
+                  <Show when={feature.status === "voting"}><button class="vote-button" aria-pressed={session()?.vote_feature_ids.includes(feature.id)??false} disabled={!sessionLoaded()||busy()} onClick={()=>void toggleVote(feature)}>{session()?.vote_feature_ids.includes(feature.id) ? "Voted ✓" : "Vote ↑"}</button></Show>
                   <Show when={feature.status === "delivered" && feature.delivery_url}><a class="delivery-link" href={feature.delivery_url!} target="_blank" rel="noreferrer">View release <span aria-hidden="true">↗</span></a></Show>
                 </article>}</For>
               </div>
@@ -124,6 +148,10 @@ export default function PublicBoard() {
           <Show when={board.loading}><div class="loading-state" role="status"><span class="loader" />Loading the board…</div></Show>
         </section>
       </main>
+
+      <Show when={notice()}><div class="toast" role="status">{notice()}<button onClick={()=>setNotice("")} aria-label="Dismiss">×</button></div></Show>
+      <Show when={authStep()!=="closed"}><div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button class="modal-close" onClick={()=>setAuthStep("closed")} aria-label="Close">×</button><p class="eyebrow">Verified visitors</p><h2 id="auth-title">{authStep()==="email"?"Sign in to vote":"Check your inbox"}</h2><p>{authStep()==="email"?"We’ll email you a one-time code. Your address stays private.":`Enter the six-digit code sent to ${authEmail()}.`}</p><Show when={authStep()==="email"} fallback={<form onSubmit={verifyCode}><label>One-time code<input required inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" value={otpCode()} onInput={e=>setOtpCode(e.currentTarget.value)}/></label><button class="primary-button" disabled={busy()}>Verify and continue</button><button type="button" class="text-button" onClick={()=>setAuthStep("email")}>Use a different email</button></form>}><form onSubmit={requestCode}><label>Email address<input type="email" required autocomplete="email" value={authEmail()} onInput={e=>setAuthEmail(e.currentTarget.value)}/></label><button class="primary-button" disabled={busy()}>Send sign-in code</button></form></Show></section></div></Show>
+      <Show when={suggestOpen()}><div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="suggest-title"><button class="modal-close" onClick={()=>setSuggestOpen(false)} aria-label="Close">×</button><p class="eyebrow">Private until reviewed</p><h2 id="suggest-title">Suggest an idea</h2><p>Suggestions are visible only to WNT reviewers until approved.</p><form onSubmit={submitSuggestion}><label>WNT app<select required value={suggestApp()} onChange={e=>setSuggestApp(e.currentTarget.value)}><For each={apps()}>{a=><option value={a.id}>{a.name}</option>}</For></select></label><label>Idea title<input required maxlength="160" value={suggestTitle()} onInput={e=>setSuggestTitle(e.currentTarget.value)}/></label><label>What would this help you do?<textarea maxlength="2000" rows="4" value={suggestDescription()} onInput={e=>setSuggestDescription(e.currentTarget.value)}/></label><button class="primary-button" disabled={busy()}>Continue</button></form></section></div></Show>
 
       <footer class="footer"><span>WNT <b>·</b> WISHLIST</span><p>Community signal <span>→</span> WNT judgment <span>→</span> shipped work</p><small>Ideas are proposals. Votes are not promises.</small></footer>
     </div>

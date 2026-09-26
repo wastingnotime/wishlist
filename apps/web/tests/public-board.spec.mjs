@@ -9,13 +9,20 @@ test.beforeEach(async ({ page }) => {
   const errors = [];
   consoleErrors.set(page, errors);
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  page.on("pageerror", (error) => { errors.push(`pageerror: ${error.message}`); console.error(error); });
+  page.on("requestfailed", (request) => errors.push(`requestfailed: ${request.url()} ${request.failure()?.errorText}`));
 });
 
 test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status !== "passed") console.log("Browser diagnostics:", consoleErrors.get(page));
   const baseURL = String(testInfo.project.use.baseURL ?? "");
   const outcomeFacts = testInfo.title.startsWith("public board filters")
     ? { voting_view_loaded: true, app_filter: "cat-care", filtered_views: ["voting", "producing", "delivered"], url_state_survived_reload: true, delivery_link_visible: true }
-    : { empty_state_visible: true, app_filter: "cat-care-missing", unrelated_features_hidden: true };
+    : testInfo.title.startsWith("admin can")
+      ? { admin_token_checked: true, app_created: true, feature_published: true }
+      : testInfo.title.startsWith("visitor can")
+        ? { otp_modal_completed: true, vote_toggled: true, private_suggestion_submitted: true }
+      : { empty_state_visible: true, app_filter: "cat-care-missing", unrelated_features_hidden: true };
   results.push({
     browser: testInfo.project.use.browserName ?? "chromium",
     flow: testInfo.title,
@@ -43,10 +50,11 @@ test.afterAll(async () => {
 test("public board filters app and lifecycle, preserves URL state, and refreshes", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Community requests" })).toBeVisible();
-  await expect(page.locator('[data-feature-slug="family-sharing"]')).toContainText("184");
+  await expect(page.locator('[data-feature-slug="family-sharing"]')).toContainText("0");
   await expect(page.locator('[data-feature-slug="dark-mode"]')).toBeVisible();
 
   await page.getByLabel("Filter by app").selectOption("cat-care");
+  await expect(page).toHaveURL(/app=cat-care/);
   await expect(page.locator('[data-feature-slug="dark-mode"]')).toHaveCount(0);
   await page.getByRole("link", { name: "Producing" }).click();
   await expect(page).toHaveURL(/view=producing.*app=cat-care|app=cat-care.*view=producing/);
@@ -66,4 +74,55 @@ test("valid app without features shows an empty state", async ({ page }) => {
   await page.goto("/?view=delivered&app=cat-care-missing");
   await expect(page.getByRole("heading", { name: "Nothing here yet" })).toBeVisible();
   await expect(page.locator('[data-feature-slug="family-sharing-shipped"]')).toHaveCount(0);
+});
+
+test("admin can create an app and publish a voting feature", async ({ page }) => {
+  await page.goto("/admin");
+  await page.getByLabel("Admin access token").fill("wishlist-e2e-admin");
+  await expect(page.getByRole("combobox", { name: "App" })).toContainText("Cat Care");
+  await page.getByLabel("Slug", { exact: true }).fill("demo-app");
+  await page.getByLabel("Name", { exact: true }).fill("Demo App");
+  await page.getByLabel("Description", { exact: true }).first().fill("A browser test app.");
+  await page.getByRole("button", { name: "Create app" }).click();
+  await expect(page.getByRole("status")).toContainText("App created");
+  await expect(page.getByRole("combobox", { name: "App" })).toContainText("Demo App");
+
+  await page.getByRole("combobox", { name: "App" }).selectOption({ label: "Demo App" });
+  await page.getByLabel("Feature slug").fill("first-request");
+  await page.getByLabel("Title", { exact: true }).fill("First request");
+  await page.getByLabel("Description", { exact: true }).last().fill("A feature created by the admin test.");
+  await page.getByRole("button", { name: "Publish to Voting" }).click();
+  await expect(page.getByRole("status")).toContainText("Feature published to Voting");
+  await page.goto("/?app=demo-app");
+  await expect(page.locator('[data-feature-slug="first-request"]')).toBeVisible();
+});
+
+test("visitor can verify, vote, and submit a private suggestion", async ({ page }) => {
+  let verified = false;
+  let voted = false;
+  let voteCount = 0;
+  let suggestionSubmitted = false;
+  await page.route("**/api/apps", route => route.fulfill({ json: { apps: [{ id: "app-cat-care", slug: "cat-care", name: "Cat Care", description: "", url: "" }] } }));
+  await page.route("**/api/features**", route => route.fulfill({ json: { features: [{ id: "feature-family-sharing", slug: "family-sharing", title: "Family sharing", description: "Coordinate care together.", app_slug: "cat-care", app_name: "Cat Care", status: "voting", vote_count: voteCount, published_at: "2026-09-01T00:00:00Z", delivered_at: null, delivery_url: null }] } }));
+  await page.route("**/api/session", route => route.fulfill({ json: { verified, vote_feature_ids: voted ? ["feature-family-sharing"] : [] } }));
+  await page.route("**/api/otp", route => route.fulfill({ status: 202, json: { requested: true } }));
+  await page.route("**/api/otp/verify", route => { verified = true; return route.fulfill({ json: { verified: true } }); });
+  await page.route("**/api/features/feature-family-sharing/vote", route => { voted = !voted; voteCount += voted ? 1 : -1; return route.fulfill({ json: { voted, vote_count: voteCount } }); });
+  await page.route("**/api/suggestions", route => { suggestionSubmitted = true; return route.fulfill({ status: 201, json: { submitted: true, suggestion_id: "suggestion-test" } }); });
+  await page.goto("/");
+  await page.locator('[data-feature-slug="family-sharing"]').getByRole("button", { name: "Vote ↑" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Email address").fill("visitor@example.com");
+  await dialog.getByRole("button", { name: "Send sign-in code" }).click();
+  await dialog.getByLabel("One-time code").fill("246810");
+  await dialog.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(page.getByRole("button", { name: "Voted ✓" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-feature-slug="family-sharing"]')).toContainText("1");
+  await page.getByRole("button", { name: "Suggest an idea" }).click();
+  const suggestion = page.getByRole("dialog");
+  await suggestion.getByLabel("Idea title").fill("Medication reminders");
+  await suggestion.getByLabel("What would this help you do?").fill("Keep doses on schedule.");
+  await suggestion.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("status")).toContainText("private");
+  expect(suggestionSubmitted).toBe(true);
 });

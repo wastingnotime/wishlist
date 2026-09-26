@@ -8,7 +8,7 @@ This executable route contract is implemented by `app.interfaces.visitor_adapter
 | --- | --- | --- | --- |
 | `POST` | `/v1/otp` | Anonymous | Accept `{ "email": "..." }`; for valid email syntax always return `202 {"requested":true}` to avoid account enumeration. Apply request throttling. |
 | `POST` | `/v1/otp/verify` | Anonymous | Accept email and code; single-use code returns `200 {"verified":true}` plus an opaque session-cookie effect. Invalid/expired code returns generic `400 invalid_or_expired_code`. |
-| `GET` | `/v1/session` | Verified session | Return `{ "verified": true, "vote_feature_ids": [...] }` for the current identity only. Anonymous returns `401 unauthenticated`. |
+| `GET` | `/v1/session` | Anonymous or verified session | Return `{ "verified": true, "vote_feature_ids": [...] }` for the current identity, or `{ "verified": false, "vote_feature_ids": [] }` when no valid session exists. |
 | `POST` | `/v1/features/{feature_id}/vote` | Verified session | Toggle one vote. A new vote requires `voting`; removing an existing vote remains allowed after transition. Return `{ "voted": bool, "vote_count": number }`. |
 | `POST` | `/v1/suggestions` | Verified session | Accept app id, title, and optional description; create a private pending suggestion and return `201 { "submitted": true, "suggestion_id": "..." }`. |
 

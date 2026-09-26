@@ -34,6 +34,34 @@
         "test_passed": true
       },
       "console_errors": []
+    },
+    {
+      "browser": "chromium",
+      "flow": "admin can create an app and publish a voting feature",
+      "base_url": "http://127.0.0.1:5173",
+      "final_page_url": "http://127.0.0.1:5173/?app=demo-app",
+      "status": "passed",
+      "outcome_facts": {
+        "admin_token_checked": true,
+        "app_created": true,
+        "feature_published": true,
+        "test_passed": true
+      },
+      "console_errors": []
+    },
+    {
+      "browser": "chromium",
+      "flow": "visitor can verify, vote, and submit a private suggestion",
+      "base_url": "http://127.0.0.1:5173",
+      "final_page_url": "http://127.0.0.1:5173/",
+      "status": "passed",
+      "outcome_facts": {
+        "otp_modal_completed": true,
+        "vote_toggled": true,
+        "private_suggestion_submitted": true,
+        "test_passed": true
+      },
+      "console_errors": []
     }
   ]
 }

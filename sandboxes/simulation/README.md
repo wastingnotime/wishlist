@@ -16,4 +16,4 @@ Run the complete acceptance scenario and print its semantic observations:
 PYTHONPATH="$HOME/.wnt/runtime/mrl:sandboxes/simulation/src" python3 sandboxes/simulation/tools/run_scenario.py
 ```
 
-Model version 0.1.0 released the public board read adapter. Visitor identity and write behavior is refined as model version 0.2.0; see [`docs/adapters/visitor-writes.md`](docs/adapters/visitor-writes.md) and its EGD/release record under `work/changes/wishlist-model-release-0.2.0/`. App projects must validate their technology-specific behavior and security boundaries.
+Model version 0.1.0 released the public board read adapter, 0.2.0 released visitor identity and writes, and 0.3.0 released admin catalog and moderation routes. See the [visitor contract](docs/adapters/visitor-writes.md), [admin contract](docs/adapters/admin-writes.md), and the EGD/release records under `work/changes/wishlist-model-release-0.2.0/` and `work/changes/wishlist-model-release-0.3.0/`. App projects must validate their technology-specific behavior and security boundaries.

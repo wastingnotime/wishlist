@@ -14,7 +14,7 @@ export default defineConfig({
   },
   reporter: "line",
   webServer: [
-    { command: "go run ./cmd/api", cwd: "../api", url: "http://127.0.0.1:8080/healthz", reuseExistingServer: !process.env.CI, timeout: 120_000 },
-    { command: "npm run dev -- --host 127.0.0.1 --port 5173", url: "http://127.0.0.1:5173", reuseExistingServer: !process.env.CI, timeout: 120_000 },
+    { command: "WISHLIST_DB_PATH=:memory: WISHLIST_ADMIN_TOKEN=wishlist-e2e-admin go run ./cmd/api", cwd: "../api", url: "http://127.0.0.1:8080/healthz", reuseExistingServer: false, timeout: 120_000 },
+    { command: "npm run dev -- --host 127.0.0.1 --port 5173", url: "http://127.0.0.1:5173", reuseExistingServer: false, timeout: 120_000 },
   ],
 });

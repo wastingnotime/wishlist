@@ -1,9 +1,22 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
+)
+
+var (
+	ErrInvalidRequest    = errors.New("invalid request")
+	ErrUnauthenticated   = errors.New("verified session required")
+	ErrInvalidCode       = errors.New("invalid or expired code")
+	ErrFeatureNotFound   = errors.New("feature not found")
+	ErrFeatureNotVoting  = errors.New("feature is not accepting votes")
+	ErrVoteConflict      = errors.New("vote could not be changed")
+	ErrAppNotFound       = errors.New("app not found")
+	ErrRateLimited       = errors.New("rate limited")
+	ErrInvalidTransition = errors.New("invalid lifecycle transition")
 )
 
 type Status string
@@ -42,6 +55,7 @@ type Feature struct {
 	Status      Status     `json:"status"`
 	VoteCount   int        `json:"vote_count"`
 	PublishedAt time.Time  `json:"published_at"`
+	ProducingAt *time.Time `json:"producing_at"`
 	DeliveredAt *time.Time `json:"delivered_at"`
 	DeliveryURL *string    `json:"delivery_url"`
 }

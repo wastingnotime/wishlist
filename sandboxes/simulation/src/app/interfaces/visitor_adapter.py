@@ -34,10 +34,10 @@ class VisitorAdapter:
     def handle(self, request: VisitorRequest) -> VisitorResponse:
         if request.method == "GET" and request.path == "/v1/session":
             if not request.session_id:
-                return VisitorResponse(401, {"error": {"code": "unauthenticated"}})
+                return VisitorResponse(200, {"verified": False, "vote_feature_ids": []})
             identity_id = self.wishlist.state.sessions.get(request.session_id)
             if not identity_id:
-                return VisitorResponse(401, {"error": {"code": "unauthenticated"}})
+                return VisitorResponse(200, {"verified": False, "vote_feature_ids": []})
             votes = sorted(feature_id for voter_id, feature_id in self.wishlist.state.votes if voter_id == identity_id)
             return VisitorResponse(200, {"verified": True, "vote_feature_ids": votes})
 

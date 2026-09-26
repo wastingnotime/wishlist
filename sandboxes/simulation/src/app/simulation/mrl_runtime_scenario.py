@@ -10,6 +10,7 @@ from mrl_simulation_runtime.scenario import InitialScheduledAction, Scenario
 
 from app.application.wishlist import Wishlist
 from app.infrastructure.fakes import FakeClock, FakeOtpSender, MemoryEventStore, SequentialIds
+from app.interfaces.admin_adapter import AdminAdapter, AdminRequest
 from app.interfaces.visitor_adapter import VisitorAdapter, VisitorRequest
 
 
@@ -18,6 +19,7 @@ def create_simulation() -> Scenario:
     store, clock, ids, sender = MemoryEventStore(), FakeClock(start), SequentialIds(), FakeOtpSender()
     wishlist = Wishlist(store, clock, ids, sender, admin_key="admin-simulation", otp_secret="simulation-secret")
     visitors = VisitorAdapter(wishlist)
+    admins = AdminAdapter(wishlist)
     refs: dict[str, str] = {}
     observed = 0
 
@@ -38,9 +40,13 @@ def create_simulation() -> Scenario:
         return execute
 
     def setup():
-        refs["app"] = wishlist.admin_create_app("admin-simulation", "cat-care", "Cat Care")
-        refs["a"] = wishlist.admin_create_feature("admin-simulation", refs["app"], "family-sharing", "Family sharing")
-        refs["b"] = wishlist.admin_create_feature("admin-simulation", refs["app"], "export-health", "Export health history")
+        created = admins.handle(AdminRequest("POST", "/v1/admin/apps", {"slug":"cat-care","name":"Cat Care"}, "admin-simulation"))
+        assert created.status == 201
+        refs["app"] = created.body["id"]
+        for key,slug,title in (("a","family-sharing","Family sharing"),("b","export-health","Export health history")):
+            response=admins.handle(AdminRequest("POST","/v1/admin/features",{"app_id":refs["app"],"slug":slug,"title":title},"admin-simulation"))
+            assert response.status == 201
+            refs[key]=response.body["id"]
 
     def verify_and_vote():
         visitors.handle(VisitorRequest("POST", "/v1/otp", body={"email": " Visitor@Example.com "}))
@@ -58,22 +64,24 @@ def create_simulation() -> Scenario:
         assert len(wishlist.list_features("voting", "cat-care")) == 2
 
     def publish():
-        refs["new"] = wishlist.admin_accept_suggestion(
-            "admin-simulation", refs["suggestion"], "medication-reminders",
-            title="Medication schedule", description="Choose a time for each dose.")
+        response=admins.handle(AdminRequest("POST",f"/v1/admin/suggestions/{refs['suggestion']}/accept",
+            {"slug":"medication-reminders","title":"Medication schedule","description":"Choose a time for each dose."},"admin-simulation"))
+        assert response.status == 204
         edited = next(row for row in wishlist.list_features("voting", "cat-care")
-                      if row["id"] == refs["new"])
+                      if row["title"] == "Medication schedule")
+        refs["new"] = edited["id"]
         assert edited["title"] == "Medication schedule"
         assert wishlist.list_features("voting", "cat-care")[0]["title"] == "Family sharing"
         assert wishlist.list_features("voting", "cat-care")[0]["id"] == refs["a"]
 
     def produce():
         # The admin can choose the lower-ranked feature.
-        wishlist.admin_change_feature_status("admin-simulation", refs["b"], "producing")
+        admins.handle(AdminRequest("PATCH",f"/v1/admin/features/{refs['b']}",
+            {"status":"producing","title":"Export health history","description":""},"admin-simulation"))
 
     def deliver():
-        wishlist.admin_change_feature_status("admin-simulation", refs["b"], "delivered",
-                                             delivery_url="https://example.com/cat-care/release")
+        admins.handle(AdminRequest("PATCH",f"/v1/admin/features/{refs['b']}",
+            {"status":"delivered","title":"Export health history","description":"","delivery_url":"https://example.com/cat-care/release"},"admin-simulation"))
         assert wishlist.list_features("delivered", "cat-care")[0]["delivery_url"]
 
     steps = [
