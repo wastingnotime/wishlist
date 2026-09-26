@@ -44,6 +44,7 @@ class State:
             feature = self.features[d["id"]]
             feature["status"] = d["status"]
             feature[d["status"] + "_at"] = event.at
+            feature["updated_at"] = event.at
             if "delivery_url" in d:
                 feature["delivery_url"] = d["delivery_url"]
         elif n == "OtpRequested":
@@ -61,6 +62,8 @@ class State:
             self.votes.remove((d["identity_id"], d["feature_id"]))
         elif n == "SuggestionSubmitted":
             self.suggestions[d["id"]] = dict(d)
+        elif n == "SuggestionEdited":
+            self.suggestions[d["id"]].update(d["changes"])
         elif n == "SuggestionReviewed":
             self.suggestions[d["id"]].update(
                 status=d["status"], resulting_feature_id=d.get("resulting_feature_id"), reviewed_at=event.at

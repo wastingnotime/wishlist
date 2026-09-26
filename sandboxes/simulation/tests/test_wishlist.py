@@ -69,6 +69,8 @@ def test_vote_lifecycle_and_admin_selection(model):
     app = service.admin_create_app("admin", "cat-care", "Cat Care")
     popular = service.admin_create_feature("admin", app, "popular", "Popular")
     chosen = service.admin_create_feature("admin", app, "chosen", "Chosen")
+    with pytest.raises(DomainError):
+        service.admin_change_feature_status("admin", chosen, "delivered")
     session = verified(model)
     service.vote_for_feature(session, popular)
     service.vote_for_feature(session, chosen)
@@ -83,6 +85,8 @@ def test_vote_lifecycle_and_admin_selection(model):
     with pytest.raises(DomainError):
         service.admin_change_feature_status("visitor", chosen, "producing")
     service.admin_change_feature_status("admin", chosen, "producing")
+    with pytest.raises(DomainError):
+        service.admin_change_feature_status("admin", chosen, "voting")
     assert not any(row["id"] == chosen for row in service.list_features("voting"))
     assert service.list_features("producing")[0]["vote_count"] == 1
     with pytest.raises(DomainError):
@@ -108,12 +112,26 @@ def test_suggestions_are_private_until_admin_publishes(model):
     assert service.admin_list_suggestions("admin", "accepted")[0]["resulting_feature_id"] == feature
     with pytest.raises(DomainError):
         service.admin_accept_suggestion("admin", pending, "again")
+    with pytest.raises(DomainError):
+        service.admin_edit_suggestion("admin", pending, title="Too late")
     rejected = service.submit_suggestion(session, app, "Reject me")
     service.admin_reject_suggestion("admin", rejected)
     assert len(service.list_features()) == 1
     merged = service.submit_suggestion(session, app, "Merge me")
     service.admin_merge_suggestion("admin", merged, feature)
     assert len(service.list_features()) == 1
+
+
+def test_admin_can_edit_pending_suggestion_before_acceptance(model):
+    service, _ = model
+    app = service.admin_create_app("admin", "cat-care", "Cat Care")
+    session = verified(model)
+    suggestion = service.submit_suggestion(session, app, "Original", "Original details")
+    service.admin_edit_suggestion("admin", suggestion, title="Reviewed title", description="Reviewed details")
+    feature = service.admin_accept_suggestion("admin", suggestion, "reviewed-title")
+    row = next(row for row in service.list_features() if row["id"] == feature)
+    assert row["title"] == "Reviewed title"
+    assert row["description"] == "Reviewed details"
 
 
 def test_public_response_has_no_private_material(model):

@@ -25,7 +25,7 @@ pending suggestion -> accepted (new voting feature)
 voting feature -> producing -> delivered
 ```
 
-The admin may return a feature to an earlier public state for correction; votes still persist. A delivered feature may carry a delivery URL. The model treats a delivered URL as optional because the handoff says admins can set one when appropriate.
+After publication, lifecycle advances one stage at a time. An admin may create a feature directly at any public status when work started elsewhere or already shipped; a direct Delivered feature has no inferred producing timestamp. The handoff does not define rollback, so corrections to prior statuses remain an open product question. Vote removal stays available after status transitions, while new votes are accepted only in Voting. A delivered feature may carry a delivery URL because the handoff makes that field optional.
 
 ## Candidate slices
 
@@ -43,3 +43,4 @@ The first runnable model covers these domain behaviors together so the handoff's
 - Should votes be removable after a feature leaves Voting? Current hypothesis: yes, for historical correction, but no new votes are accepted then.
 - Should a deactivated app still show its previously published features? Current hypothesis: yes.
 - Can an admin publish directly into Producing or Delivered? Current hypothesis: yes, with explicit timestamps.
+- Should a published feature ever move backward for correction? Current hypothesis: no; the handoff only describes forward progression.

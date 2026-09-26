@@ -50,7 +50,13 @@ def create_simulation() -> Scenario:
         assert len(wishlist.list_features("voting", "cat-care")) == 2
 
     def publish():
-        refs["new"] = wishlist.admin_accept_suggestion("admin-simulation", refs["suggestion"], "medication-reminders")
+        refs["new"] = wishlist.admin_accept_suggestion(
+            "admin-simulation", refs["suggestion"], "medication-reminders",
+            title="Medication schedule", description="Choose a time for each dose.")
+        edited = next(row for row in wishlist.list_features("voting", "cat-care")
+                      if row["id"] == refs["new"])
+        assert edited["title"] == "Medication schedule"
+        assert wishlist.list_features("voting", "cat-care")[0]["title"] == "Family sharing"
         assert wishlist.list_features("voting", "cat-care")[0]["id"] == refs["a"]
 
     def produce():

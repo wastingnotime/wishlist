@@ -19,6 +19,7 @@
 {"actor": "visitor", "correlation_id": "suggest-privately", "name": "suggest-privately", "payload": {"succeeded": true}, "sim_time": "2026-01-01T12:02:00+00:00", "source": "Wishlist", "type": "use_case_result"}
 {"correlation_id": "publish-suggestion", "name": "publish-suggestion", "payload": {}, "sim_time": "2026-01-01T12:03:00+00:00", "source": "wishlist-scenario", "type": "scheduled_action_started"}
 {"actor": "admin", "correlation_id": "publish-suggestion", "name": "publish-suggestion", "payload": {"intention": "publish-suggestion"}, "sim_time": "2026-01-01T12:03:00+00:00", "source": "wishlist-scenario", "type": "actor_intention"}
+{"actor": "admin", "correlation_id": "publish-suggestion", "name": "SuggestionEdited", "payload": {"event_name": "SuggestionEdited"}, "sim_time": "2026-01-01T12:03:00+00:00", "source": "Wishlist", "type": "domain_event"}
 {"actor": "admin", "correlation_id": "publish-suggestion", "name": "FeaturePublished", "payload": {"event_name": "FeaturePublished"}, "sim_time": "2026-01-01T12:03:00+00:00", "source": "Wishlist", "type": "domain_event"}
 {"actor": "admin", "correlation_id": "publish-suggestion", "name": "SuggestionReviewed", "payload": {"event_name": "SuggestionReviewed"}, "sim_time": "2026-01-01T12:03:00+00:00", "source": "Wishlist", "type": "domain_event"}
 {"actor": "admin", "correlation_id": "publish-suggestion", "name": "publish-suggestion", "payload": {"succeeded": true}, "sim_time": "2026-01-01T12:03:00+00:00", "source": "Wishlist", "type": "use_case_result"}

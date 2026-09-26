@@ -130,7 +130,7 @@ class Wishlist:
                      title=_bounded(title, "title", 160),
                      description=_bounded(description, "description", 2000, optional=True),
                      status=status, published_at=now,
-                     producing_at=now if status in ("producing", "delivered") else None,
+                     producing_at=now if status == "producing" else None,
                      delivered_at=now if status == "delivered" else None,
                      delivery_url=_url(delivery_url),
                      created_at=now, updated_at=now)
@@ -154,6 +154,8 @@ class Wishlist:
         feature = self._feature(feature_id)
         if status not in STATUSES or status == feature["status"]:
             raise DomainError("Invalid lifecycle transition")
+        if STATUSES.index(status) != STATUSES.index(feature["status"]) + 1:
+            raise DomainError("Feature lifecycle must advance by one stage")
         data: dict[str, Any] = dict(id=feature_id, status=status)
         if delivery_url is not None:
             data["delivery_url"] = _url(delivery_url)
@@ -258,13 +260,28 @@ class Wishlist:
             raise DomainError("Pending suggestion required")
         return suggestion
 
+    def admin_edit_suggestion(self, key: str, suggestion_id: str, *, title: str | None = None,
+                              description: str | None = None) -> None:
+        self._admin(key)
+        self._pending(suggestion_id)
+        changes: dict[str, str] = {}
+        if title is not None:
+            changes["title"] = _bounded(title, "title", 160)
+        if description is not None:
+            changes["description"] = _bounded(description, "description", 2000, optional=True)
+        if not changes:
+            raise DomainError("No suggestion changes provided")
+        self._record("SuggestionEdited", id=suggestion_id, changes=changes)
+
     def admin_accept_suggestion(self, key: str, suggestion_id: str, slug: str,
                                 title: str | None = None, description: str | None = None) -> str:
         self._admin(key)
         suggestion = self._pending(suggestion_id)
+        if title is not None or description is not None:
+            self.admin_edit_suggestion(key, suggestion_id, title=title, description=description)
+            suggestion = self._pending(suggestion_id)
         feature_id = self.admin_create_feature(key, suggestion["app_id"], slug,
-                                               title if title is not None else suggestion["title"],
-                                               description if description is not None else suggestion["description"])
+                                               suggestion["title"], suggestion["description"])
         self._record("SuggestionReviewed", id=suggestion_id, status="accepted", resulting_feature_id=feature_id)
         return feature_id
 
