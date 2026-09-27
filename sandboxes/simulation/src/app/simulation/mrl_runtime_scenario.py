@@ -46,13 +46,16 @@ def _observatory() -> tuple[list[ObservatoryNode], list[ObservatoryEdge]]:
         "OtpRequested", "OtpVerified", "VoteCast", "VoteRemoved", "SuggestionSubmitted",
         "SuggestionReviewed", "SessionEnded",
     )
-    nodes = [ObservatoryNode(name, name.title(), "actor", "actors", domain="wishlist", status="active")
+    # Numeric layer positions compensate for the runtime's current rank map:
+    # its preset places inbound adapters before actors and merges outbound
+    # adapters with projections. Keep this scenario's declared flow ordered.
+    nodes = [ObservatoryNode(name, name.title(), "actor", -4, domain="wishlist", status="active")
              for name in actors]
     nodes += [
-        ObservatoryNode("otp-provider", "Fake OTP Mail Provider", "outbound_adapter", "outbound_adapters", domain="wishlist"),
-        ObservatoryNode("AdminAdapter", "Admin API Adapter", "inbound_adapter", "inbound_adapters", domain="wishlist"),
-        ObservatoryNode("VisitorAdapter", "Visitor API Adapter", "inbound_adapter", "inbound_adapters", domain="wishlist"),
-        ObservatoryNode("PublicBoardAdapter", "Public Board Adapter", "inbound_adapter", "inbound_adapters", domain="wishlist"),
+        ObservatoryNode("otp-provider", "Fake OTP Mail Provider", "outbound_adapter", 6.5, domain="wishlist"),
+        ObservatoryNode("AdminAdapter", "Admin API Adapter", "inbound_adapter", -8, domain="wishlist"),
+        ObservatoryNode("VisitorAdapter", "Visitor API Adapter", "inbound_adapter", -8, domain="wishlist"),
+        ObservatoryNode("PublicBoardAdapter", "Public Board Adapter", "inbound_adapter", -8, domain="wishlist"),
     ]
     nodes += [ObservatoryNode(name, name, "use_case", "use_cases", domain="wishlist",
                               description=f"{group} use case")
