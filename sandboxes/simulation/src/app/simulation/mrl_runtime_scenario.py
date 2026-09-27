@@ -49,7 +49,7 @@ def _observatory() -> tuple[list[ObservatoryNode], list[ObservatoryEdge]]:
     nodes = [ObservatoryNode(name, name.title(), "actor", "actors", domain="wishlist", status="active")
              for name in actors]
     nodes += [
-        ObservatoryNode("otp-provider", "Fake OTP Mail Provider", "fake_provider", "fake_providers", domain="wishlist"),
+        ObservatoryNode("otp-provider", "Fake OTP Mail Provider", "outbound_adapter", "outbound_adapters", domain="wishlist"),
         ObservatoryNode("AdminAdapter", "Admin API Adapter", "inbound_adapter", "inbound_adapters", domain="wishlist"),
         ObservatoryNode("VisitorAdapter", "Visitor API Adapter", "inbound_adapter", "inbound_adapters", domain="wishlist"),
         ObservatoryNode("PublicBoardAdapter", "Public Board Adapter", "inbound_adapter", "inbound_adapters", domain="wishlist"),
@@ -67,7 +67,8 @@ def _observatory() -> tuple[list[ObservatoryNode], list[ObservatoryEdge]]:
              ObservatoryEdge("maya", "VisitorAdapter", "visitor commands"),
              ObservatoryEdge("leo", "VisitorAdapter", "visitor commands"),
              ObservatoryEdge("noa", "VisitorAdapter", "visitor commands"),
-             ObservatoryEdge("VisitorAdapter", "otp-provider", "send code"),
+             ObservatoryEdge("VisitorAdapter", "RequestOTP", "request code"),
+             ObservatoryEdge("RequestOTP", "otp-provider", "send code"),
              ObservatoryEdge("PublicBoardAdapter", "PublicBoard", "read")]
     edges += [ObservatoryEdge("AdminAdapter" if name in {"CreateApp", "UpdateApp", "PublishFeature", "ListSuggestions", "ReviewSuggestion", "AdvanceFeature"}
                               else "PublicBoardAdapter" if name == "ViewBoard" else "VisitorAdapter",
