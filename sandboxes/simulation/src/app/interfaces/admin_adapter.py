@@ -35,6 +35,8 @@ class AdminAdapter:
         except DomainError:
             return AdminResponse(401, {"error": {"code": "unauthorized"}})
         parts = request.path.strip("/").split("/")
+        if request.method == "GET" and request.path == "/v1/admin/session":
+            return AdminResponse(200, {"authorized": True})
         if request.method == "GET" and request.path == "/v1/admin/apps":
             apps = [dict(app) for app in sorted(self.wishlist.state.apps.values(), key=lambda item: item["name"])]
             return AdminResponse(200, {"apps": apps})
@@ -43,7 +45,8 @@ class AdminAdapter:
                 rows = self.wishlist.admin_list_suggestions(request.token)
             except DomainError:
                 return AdminResponse(400, {"error": {"code": "invalid_request"}})
-            private_rows = [{key:value for key,value in row.items() if key not in {"identity_id","reviewed_at"}} for row in rows]
+            fields = ("id", "app_id", "title", "description", "created_at")
+            private_rows = [{field: row[field] for field in fields} for row in rows]
             return AdminResponse(200, {"suggestions": private_rows})
         try:
             if request.method == "POST" and parts == ["v1", "admin", "apps"]:
@@ -54,6 +57,8 @@ class AdminAdapter:
                 self.wishlist.admin_update_app(request.token, parts[3], **request.body)
                 return AdminResponse(204, {})
             if request.method == "POST" and parts == ["v1", "admin", "features"]:
+                if set(request.body) - {"app_id", "slug", "title", "description"}:
+                    return AdminResponse(400, {"error": {"code": "invalid_request"}})
                 feature_id = self.wishlist.admin_create_feature(request.token, str(request.body.get("app_id", "")),
                     str(request.body.get("slug", "")), str(request.body.get("title", "")), str(request.body.get("description", "")))
                 return AdminResponse(201, {"id": feature_id})

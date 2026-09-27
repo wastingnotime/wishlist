@@ -31,10 +31,14 @@ def test_public_board_filter_and_ranking(model):
     first = service.admin_create_feature("admin", cat, "first", "First")
     second = service.admin_create_feature("admin", cat, "second", "Second")
     service.admin_create_feature("admin", tasks, "other", "Other")
-    cat_producing = service.admin_create_feature("admin", cat, "making", "Making", status="producing")
-    service.admin_create_feature("admin", tasks, "making", "Making", status="producing")
-    cat_delivered = service.admin_create_feature("admin", cat, "shipped", "Shipped", status="delivered")
-    service.admin_create_feature("admin", tasks, "shipped", "Shipped", status="delivered")
+    cat_producing = service.admin_create_feature("admin", cat, "making", "Making")
+    tasks_producing = service.admin_create_feature("admin", tasks, "making", "Making")
+    cat_delivered = service.admin_create_feature("admin", cat, "shipped", "Shipped")
+    tasks_delivered = service.admin_create_feature("admin", tasks, "shipped", "Shipped")
+    for feature in (cat_producing, tasks_producing, cat_delivered, tasks_delivered):
+        service.admin_change_feature_status("admin", feature, "producing")
+    for feature in (cat_delivered, tasks_delivered):
+        service.admin_change_feature_status("admin", feature, "delivered", "https://example.com/release")
     session = verified(model)
     service.vote_for_feature(session, second)
     assert [row["id"] for row in service.list_features("voting", "cat-care")] == [second, first]
@@ -53,7 +57,7 @@ def test_otp_session_expiry_single_use_and_throttling(model):
     with pytest.raises(DomainError):
         service.verify_otp("v@example.com", "000000" if code != "000000" else "111111")
     session = service.verify_otp("v@example.com", code)
-    assert service.state.sessions[session] == service.state.identities["v@example.com"]
+    assert service.state.sessions[session]["identity_id"] == service.state.identities["v@example.com"]
     with pytest.raises(DomainError):
         service.verify_otp("v@example.com", code)
     service.request_otp("expired@example.com")
@@ -81,7 +85,7 @@ def test_vote_lifecycle_and_admin_selection(model):
         service.vote_for_feature(session, chosen)
     with pytest.raises(DomainError):
         service.store.append(Event("VoteCast", service.clock.now(),
-                                   {"identity_id": service.state.sessions[session], "feature_id": chosen}))
+                                   {"identity_id": service.state.sessions[session]["identity_id"], "feature_id": chosen}))
     service.remove_vote(session, chosen)
     assert service.list_features()[1]["vote_count"] == 0
     service.vote_for_feature(session, chosen)
@@ -115,8 +119,6 @@ def test_suggestions_are_private_until_admin_publishes(model):
     assert service.admin_list_suggestions("admin", "accepted")[0]["resulting_feature_id"] == feature
     with pytest.raises(DomainError):
         service.admin_accept_suggestion("admin", pending, "again")
-    with pytest.raises(DomainError):
-        service.admin_edit_suggestion("admin", pending, title="Too late")
     rejected = service.submit_suggestion(session, app, "Reject me")
     service.admin_reject_suggestion("admin", rejected)
     assert len(service.list_features()) == 1
@@ -125,13 +127,13 @@ def test_suggestions_are_private_until_admin_publishes(model):
     assert len(service.list_features()) == 1
 
 
-def test_admin_can_edit_pending_suggestion_before_acceptance(model):
+def test_admin_can_edit_suggestion_during_acceptance(model):
     service, _ = model
     app = service.admin_create_app("admin", "cat-care", "Cat Care")
     session = verified(model)
     suggestion = service.submit_suggestion(session, app, "Original", "Original details")
-    service.admin_edit_suggestion("admin", suggestion, title="Reviewed title", description="Reviewed details")
-    feature = service.admin_accept_suggestion("admin", suggestion, "reviewed-title")
+    feature = service.admin_accept_suggestion("admin", suggestion, "reviewed-title",
+                                              title="Reviewed title", description="Reviewed details")
     row = next(row for row in service.list_features() if row["id"] == feature)
     assert row["title"] == "Reviewed title"
     assert row["description"] == "Reviewed details"
@@ -158,7 +160,7 @@ def test_public_links_reject_unsafe_schemes(model):
     app = service.admin_create_app("admin", "safe", "Safe")
     feature = service.admin_create_feature("admin", app, "feature", "Feature")
     with pytest.raises(DomainError):
-        service.admin_change_feature_status("admin", feature, "delivered", delivery_url="javascript:alert(1)")
+        service.admin_change_feature_status("admin", feature, "producing", delivery_url="javascript:alert(1)")
 
 
 def test_public_board_adapter_routes_and_errors(model):
@@ -233,3 +235,58 @@ def test_admin_adapter_protects_catalog_and_moderates_private_suggestions(model)
         {"feature_id": feature.body["id"]}, token="admin"))
     assert merged.status == 204
     assert adapter.handle(AdminRequest("GET", "/v1/admin/suggestions", token="admin")).body["suggestions"] == []
+
+
+def test_materialized_app_lifecycle_and_visibility_rules(model):
+    service, _ = model
+    app = service.admin_create_app("admin", "cat-care", "Cat Care")
+    admin = AdminAdapter(service)
+    premature = admin.handle(AdminRequest("POST", "/v1/admin/features", {
+        "app_id": app, "slug": "already-shipped", "title": "Shipped", "status": "delivered"}, token="admin"))
+    assert premature.status == 400
+    feature = service.admin_create_feature("admin", app, "sharing", "Sharing")
+    assert service.state.features[feature]["status"] == "voting"
+    service.admin_change_feature_status("admin", feature, "producing")
+    with pytest.raises(DomainError):
+        service.admin_change_feature_status("admin", feature, "delivered")
+    with pytest.raises(DomainError):
+        service.admin_change_feature_status("admin", feature, "delivered", "http://example.com/release")
+    service.admin_change_feature_status("admin", feature, "delivered", "https://example.com/release")
+    assert service.list_features("delivered")[0]["id"] == feature
+    service.admin_update_app("admin", app, active=False)
+    assert service.list_apps() == []
+    assert service.list_features("delivered") == []
+    assert service.state.features[feature]["status"] == "delivered"
+
+
+def test_materialized_app_session_expiry_and_logout(model):
+    service, _ = model
+    app = service.admin_create_app("admin", "cat-care", "Cat Care")
+    feature = service.admin_create_feature("admin", app, "sharing", "Sharing")
+    visitor = VisitorAdapter(service)
+    session = verified(model)
+    service.clock.set(service.clock.now() + timedelta(days=30))
+    assert visitor.handle(VisitorRequest("GET", "/v1/session", session_id=session)).body["verified"] is False
+    assert visitor.handle(VisitorRequest("POST", f"/v1/features/{feature}/vote", session_id=session)).status == 401
+    fresh_session = verified(model)
+    assert visitor.handle(VisitorRequest("GET", "/v1/session", session_id=fresh_session)).body["verified"] is True
+    assert visitor.handle(VisitorRequest("DELETE", "/v1/session", session_id=fresh_session)).status == 204
+    assert visitor.handle(VisitorRequest("GET", "/v1/session", session_id=fresh_session)).body["verified"] is False
+
+
+def test_materialized_app_catalog_and_moderation_contract(model):
+    service, _ = model
+    with pytest.raises(DomainError):
+        service.admin_create_app("admin", "cat-care", "Cat Care", url="http://example.com")
+    with pytest.raises(DomainError):
+        service.admin_create_app("admin", "Cat-Care", "Cat Care")
+    with pytest.raises(DomainError):
+        service.admin_create_app("admin", "too-long", "x" * 101)
+    app = service.admin_create_app("admin", "cat-care", "Cat Care")
+    session = verified(model)
+    suggestion = service.submit_suggestion(session, app, "Idea")
+    assert service.state.suggestions[suggestion]["status"] == "pending_review"
+    admin = AdminAdapter(service)
+    assert admin.handle(AdminRequest("GET", "/v1/admin/session", token="admin")).body == {"authorized": True}
+    rows = admin.handle(AdminRequest("GET", "/v1/admin/suggestions", token="admin")).body["suggestions"]
+    assert set(rows[0]) == {"id", "app_id", "title", "description", "created_at"}

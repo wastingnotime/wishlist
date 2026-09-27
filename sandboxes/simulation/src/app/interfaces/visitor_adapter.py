@@ -35,11 +35,17 @@ class VisitorAdapter:
         if request.method == "GET" and request.path == "/v1/session":
             if not request.session_id:
                 return VisitorResponse(200, {"verified": False, "vote_feature_ids": []})
-            identity_id = self.wishlist.state.sessions.get(request.session_id)
-            if not identity_id:
+            try:
+                identity_id = self.wishlist._identity(request.session_id)
+            except DomainError:
                 return VisitorResponse(200, {"verified": False, "vote_feature_ids": []})
             votes = sorted(feature_id for voter_id, feature_id in self.wishlist.state.votes if voter_id == identity_id)
             return VisitorResponse(200, {"verified": True, "vote_feature_ids": votes})
+
+        if request.method == "DELETE" and request.path == "/v1/session":
+            if request.session_id:
+                self.wishlist.logout(request.session_id)
+            return VisitorResponse(204, {})
 
         if request.method == "POST" and request.path == "/v1/otp":
             email = request.body.get("email", "")
@@ -70,7 +76,7 @@ class VisitorAdapter:
             if not feature_id or "/" in feature_id:
                 return VisitorResponse(404, {"error": {"code": "not_found"}})
             try:
-                identity_id = self.wishlist.state.sessions[request.session_id]
+                identity_id = self.wishlist._identity(request.session_id)
                 vote = (identity_id, feature_id)
                 if vote in self.wishlist.state.votes:
                     self.wishlist.remove_vote(request.session_id, feature_id)
@@ -78,7 +84,9 @@ class VisitorAdapter:
                 else:
                     self.wishlist.vote_for_feature(request.session_id, feature_id)
                     active = True
-            except (DomainError, KeyError):
+            except DomainError as error:
+                if str(error) == "Verified session required":
+                    return VisitorResponse(401, {"error": {"code": "unauthenticated"}})
                 return VisitorResponse(409, {"error": {"code": "vote_unavailable"}})
             count = sum(feature == feature_id for _, feature in self.wishlist.state.votes)
             return VisitorResponse(200, {"voted": active, "vote_count": count})
@@ -90,7 +98,9 @@ class VisitorAdapter:
                 suggestion_id = self.wishlist.submit_suggestion(
                     request.session_id, str(request.body.get("app_id", "")),
                     str(request.body.get("title", "")), str(request.body.get("description", "")))
-            except DomainError:
+            except DomainError as error:
+                if str(error) == "Verified session required":
+                    return VisitorResponse(401, {"error": {"code": "unauthenticated"}})
                 return VisitorResponse(400, {"error": {"code": "invalid_request"}})
             return VisitorResponse(201, {"submitted": True, "suggestion_id": suggestion_id})
 

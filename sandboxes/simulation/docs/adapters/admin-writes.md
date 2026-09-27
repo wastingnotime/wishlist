@@ -4,12 +4,13 @@
 
 | Method | Route | Contract |
 | --- | --- | --- |
+| GET | `/v1/admin/session` | Confirm admin authorization with `200 {"authorized":true}`. |
 | GET | `/v1/admin/apps` | Return all apps, including inactive apps, for administration. |
 | POST | `/v1/admin/apps` | Create `{slug,name,description?,url?}` and return `201 {id}`. |
 | PATCH | `/v1/admin/apps/{id}` | Update name, description, URL, or active state; return `204`. |
-| POST | `/v1/admin/features` | Publish a new Voting feature for an active app; return `201 {id}`. |
+| POST | `/v1/admin/features` | Publish a new Voting feature for an active app; return `201 {id}`. A supplied status is invalid. |
 | PATCH | `/v1/admin/features/{id}` | Edit feature fields or advance exactly one lifecycle stage. A Delivered transition includes an HTTPS delivery URL. |
-| GET | `/v1/admin/suggestions` | Return pending private suggestions without voter email or identity fields. |
+| GET | `/v1/admin/suggestions` | Return `pending_review` suggestions with id, app id, title, description, and creation time only. |
 | POST | `/v1/admin/suggestions/{id}/accept` | Optionally edit title/description and publish as a new Voting feature; return `204`. |
 | POST | `/v1/admin/suggestions/{id}/reject` | Reject a pending suggestion; return `204`. |
 | POST | `/v1/admin/suggestions/{id}/merge` | Mark a pending suggestion merged into an existing feature from the same app; accept `{feature_id}` and return `204`. |

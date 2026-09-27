@@ -7,7 +7,7 @@ This contract is synchronized from the executable `app.interfaces.public_board` 
 | Method | Path | Query | Result |
 | --- | --- | --- | --- |
 | `GET` | `/v1/apps` | — | `{ "apps": [...] }`; active apps only |
-| `GET` | `/v1/features` | `view=voting\|producing\|delivered` (default `voting`), optional `app=<slug>` | `{ "features": [...] }`; app filter is identical for all views |
+| `GET` | `/v1/features` | `view=voting\|producing\|delivered` (default `voting`), optional `app=<slug>` | `{ "features": [...] }`; app filter is identical for all views; inactive apps' features are hidden |
 
 Features are ordered by active vote count descending, then publication time and id ascending. All results are public DTOs; identity, email, OTP, and suggestions are absent. Invalid view/filter returns `400 {"error":{"code":"invalid_request"}}`; unknown path returns `404`; unsupported method returns `405`.
 

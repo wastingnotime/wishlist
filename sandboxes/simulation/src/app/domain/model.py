@@ -25,7 +25,7 @@ class State:
     suggestions: dict[str, dict[str, Any]] = field(default_factory=dict)
     identities: dict[str, str] = field(default_factory=dict)  # normalized email -> id
     challenges: dict[str, dict[str, Any]] = field(default_factory=dict)  # email -> challenge
-    sessions: dict[str, str] = field(default_factory=dict)  # session -> identity id
+    sessions: dict[str, dict[str, Any]] = field(default_factory=dict)  # session -> identity and expiry
     votes: set[tuple[str, str]] = field(default_factory=set)
     otp_requests: dict[str, list[datetime]] = field(default_factory=dict)
 
@@ -55,7 +55,9 @@ class State:
         elif n == "OtpVerified":
             self.challenges.pop(d["email"], None)
             self.identities[d["email"]] = d["identity_id"]
-            self.sessions[d["session_id"]] = d["identity_id"]
+            self.sessions[d["session_id"]] = {"identity_id": d["identity_id"], "expires_at": d["expires_at"]}
+        elif n == "SessionEnded":
+            self.sessions.pop(d["session_id"], None)
         elif n == "VoteCast":
             self.votes.add((d["identity_id"], d["feature_id"]))
         elif n == "VoteRemoved":

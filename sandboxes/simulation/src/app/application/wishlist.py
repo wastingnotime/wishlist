@@ -13,7 +13,7 @@ from app.domain.model import DomainError, Event, State, replay
 from app.infrastructure.fakes import FakeClock, FakeOtpSender, MemoryEventStore, SequentialIds
 
 STATUSES = ("voting", "producing", "delivered")
-SUGGESTION_STATUSES = ("pending", "accepted", "rejected", "merged")
+SUGGESTION_STATUSES = ("pending_review", "accepted", "rejected", "merged")
 
 
 def _bounded(value: str, name: str, limit: int, *, optional: bool = False) -> str:
@@ -24,17 +24,17 @@ def _bounded(value: str, name: str, limit: int, *, optional: bool = False) -> st
 
 
 def _slug(value: str) -> str:
-    value = _bounded(value.lower(), "slug", 80)
+    value = _bounded(value, "slug", 80)
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value):
         raise DomainError("Invalid slug")
     return value
 
 
-def _url(value: str) -> str:
-    value = _bounded(value, "URL", 500, optional=True)
+def _url(value: str, limit: int = 500) -> str:
+    value = _bounded(value, "URL", limit, optional=True)
     if value:
         parsed = urlsplit(value)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.username or parsed.password:
+        if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
             raise DomainError("Invalid URL")
     return value
 
@@ -67,10 +67,14 @@ class Wishlist:
             raise DomainError("Admin authorization required")
 
     def _identity(self, session: str) -> str:
-        identity = self.state.sessions.get(session)
-        if not identity:
+        session_data = self.state.sessions.get(session)
+        if not session_data or self.clock.now() >= session_data["expires_at"]:
             raise DomainError("Verified session required")
-        return identity
+        return session_data["identity_id"]
+
+    def logout(self, session: str) -> None:
+        if session in self.state.sessions:
+            self._record("SessionEnded", session_id=session)
 
     def _app(self, app_id: str, *, active: bool = False) -> dict[str, Any]:
         app = self.state.apps.get(app_id)
@@ -90,8 +94,8 @@ class Wishlist:
         if any(app["slug"] == slug for app in self.state.apps.values()):
             raise DomainError("App slug already exists")
         app_id = self.ids.new("app")
-        self._record("AppCreated", id=app_id, slug=slug, name=_bounded(name, "name", 120),
-                     description=_bounded(description, "description", 1000, optional=True),
+        self._record("AppCreated", id=app_id, slug=slug, name=_bounded(name, "name", 100),
+                     description=_bounded(description, "description", 500, optional=True),
                      url=_url(url), active=True,
                      created_at=self.clock.now(), updated_at=self.clock.now())
         return app_id
@@ -102,7 +106,7 @@ class Wishlist:
         allowed = {"name", "description", "url", "active"}
         if not changes or set(changes) - allowed:
             raise DomainError("Invalid app update")
-        for field, limit in (("name", 120), ("description", 1000), ("url", 500)):
+        for field, limit in (("name", 100), ("description", 500), ("url", 500)):
             if field in changes:
                 changes[field] = _url(changes[field]) if field == "url" else _bounded(
                     changes[field], field, limit, optional=field != "name")
@@ -116,12 +120,10 @@ class Wishlist:
                 for a in sorted(self.state.apps.values(), key=lambda a: a["name"]) if a["active"]]
 
     def admin_create_feature(self, key: str, app_id: str, slug: str, title: str,
-                             description: str = "", status: str = "voting", delivery_url: str = "") -> str:
+                             description: str = "") -> str:
         self._admin(key)
         self._app(app_id, active=True)
         slug = _slug(slug)
-        if status not in STATUSES:
-            raise DomainError("Invalid feature status")
         if any(f["app_id"] == app_id and f["slug"] == slug for f in self.state.features.values()):
             raise DomainError("Feature slug already exists in app")
         feature_id = self.ids.new("feature")
@@ -129,22 +131,22 @@ class Wishlist:
         self._record("FeaturePublished", id=feature_id, app_id=app_id, slug=slug,
                      title=_bounded(title, "title", 160),
                      description=_bounded(description, "description", 2000, optional=True),
-                     status=status, published_at=now,
-                     producing_at=now if status == "producing" else None,
-                     delivered_at=now if status == "delivered" else None,
-                     delivery_url=_url(delivery_url),
+                     status="voting", published_at=now,
+                     producing_at=None, delivered_at=None, delivery_url="",
                      created_at=now, updated_at=now)
         return feature_id
 
     def admin_update_feature(self, key: str, feature_id: str, **changes: str) -> None:
         self._admin(key)
         self._feature(feature_id)
-        limits = {"title": 160, "description": 2000, "delivery_url": 500}
+        limits = {"title": 160, "description": 2000, "delivery_url": 1000}
         if not changes or set(changes) - limits:
             raise DomainError("Invalid feature update")
         for field, value in changes.items():
-            changes[field] = _url(value) if field == "delivery_url" else _bounded(
+            changes[field] = _url(value, 1000) if field == "delivery_url" else _bounded(
                 value, field, limits[field], optional=field != "title")
+        if "delivery_url" in changes and self._feature(feature_id)["status"] == "delivered" and not changes["delivery_url"]:
+            raise DomainError("Delivered feature requires a delivery URL")
         changes["updated_at"] = self.clock.now()
         self._record("FeatureUpdated", id=feature_id, changes=changes)
 
@@ -156,9 +158,11 @@ class Wishlist:
             raise DomainError("Invalid lifecycle transition")
         if STATUSES.index(status) != STATUSES.index(feature["status"]) + 1:
             raise DomainError("Feature lifecycle must advance by one stage")
+        if status == "delivered" and not delivery_url:
+            raise DomainError("Delivered feature requires a delivery URL")
         data: dict[str, Any] = dict(id=feature_id, status=status)
         if delivery_url is not None:
-            data["delivery_url"] = _url(delivery_url)
+            data["delivery_url"] = _url(delivery_url, 1000)
         self._record("FeatureStatusChanged", **data)
 
     def list_features(self, view: str = "voting", app_slug: str | None = None) -> list[dict[str, Any]]:
@@ -170,7 +174,7 @@ class Wishlist:
         rows = []
         for feature in state.features.values():
             app = state.apps[feature["app_id"]]
-            if feature["status"] != view or (app_slug is not None and app["slug"] != app_slug):
+            if not app["active"] or feature["status"] != view or (app_slug is not None and app["slug"] != app_slug):
                 continue
             count = sum(feature_id == feature["id"] for _, feature_id in state.votes)
             rows.append(dict(id=feature["id"], slug=feature["slug"], title=feature["title"],
@@ -214,7 +218,8 @@ class Wishlist:
             raise DomainError("Invalid or expired OTP")
         identity_id = self.state.identities.get(email) or self.ids.new("identity")
         session_id = self.ids.new("session")
-        self._record("OtpVerified", email=email, identity_id=identity_id, session_id=session_id)
+        self._record("OtpVerified", email=email, identity_id=identity_id, session_id=session_id,
+                     expires_at=self.clock.now() + timedelta(days=30))
         return session_id
 
     def vote_for_feature(self, session: str, feature_id: str) -> None:
@@ -244,11 +249,11 @@ class Wishlist:
         self._record("SuggestionSubmitted", id=suggestion_id, app_id=app_id, identity_id=identity_id,
                      title=_bounded(title, "title", 160),
                      description=_bounded(description, "description", 2000, optional=True),
-                     status="pending", created_at=self.clock.now(), reviewed_at=None,
+                     status="pending_review", created_at=self.clock.now(), reviewed_at=None,
                      resulting_feature_id=None)
         return suggestion_id
 
-    def admin_list_suggestions(self, key: str, status: str = "pending") -> list[dict[str, Any]]:
+    def admin_list_suggestions(self, key: str, status: str = "pending_review") -> list[dict[str, Any]]:
         self._admin(key)
         if status not in SUGGESTION_STATUSES:
             raise DomainError("Invalid suggestion status")
@@ -256,32 +261,18 @@ class Wishlist:
 
     def _pending(self, suggestion_id: str) -> dict[str, Any]:
         suggestion = self.state.suggestions.get(suggestion_id)
-        if not suggestion or suggestion["status"] != "pending":
+        if not suggestion or suggestion["status"] != "pending_review":
             raise DomainError("Pending suggestion required")
         return suggestion
-
-    def admin_edit_suggestion(self, key: str, suggestion_id: str, *, title: str | None = None,
-                              description: str | None = None) -> None:
-        self._admin(key)
-        self._pending(suggestion_id)
-        changes: dict[str, str] = {}
-        if title is not None:
-            changes["title"] = _bounded(title, "title", 160)
-        if description is not None:
-            changes["description"] = _bounded(description, "description", 2000, optional=True)
-        if not changes:
-            raise DomainError("No suggestion changes provided")
-        self._record("SuggestionEdited", id=suggestion_id, changes=changes)
 
     def admin_accept_suggestion(self, key: str, suggestion_id: str, slug: str,
                                 title: str | None = None, description: str | None = None) -> str:
         self._admin(key)
         suggestion = self._pending(suggestion_id)
-        if title is not None or description is not None:
-            self.admin_edit_suggestion(key, suggestion_id, title=title, description=description)
-            suggestion = self._pending(suggestion_id)
         feature_id = self.admin_create_feature(key, suggestion["app_id"], slug,
-                                               suggestion["title"], suggestion["description"])
+                                               _bounded(title if title is not None else suggestion["title"], "title", 160),
+                                               _bounded(description if description is not None else suggestion["description"],
+                                                        "description", 2000, optional=True))
         self._record("SuggestionReviewed", id=suggestion_id, status="accepted", resulting_feature_id=feature_id)
         return feature_id
 
