@@ -1,4 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
+import { adminAuthMode, sessionAccessToken } from "../../lib/admin-auth";
 
 const routes = new Map<string, Set<string>>([
   ["apps", new Set(["GET"])],
@@ -10,6 +11,7 @@ const routes = new Map<string, Set<string>>([
   ["admin/suggestions", new Set(["GET"])],
   ["admin/apps", new Set(["GET", "POST"])],
   ["admin/features", new Set(["POST"])],
+  ["admin/session", new Set(["GET"])],
 ]);
 
 async function proxy(event: APIEvent) {
@@ -30,9 +32,18 @@ async function proxy(event: APIEvent) {
   const upstream = new URL(`/v1/${path}${incoming.search}`, upstreamBase);
   try {
     const headers = new Headers();
-    for (const name of ["content-type", "cookie", "authorization"]) {
+    for (const name of ["content-type", "cookie"]) {
       const value = event.request.headers.get(name);
       if (value) headers.set(name, value);
+    }
+    if (path.startsWith("admin/")) {
+      if (adminAuthMode() === "casdoor") {
+        const token = sessionAccessToken(event.request);
+        if (token) headers.set("authorization", `Bearer ${token}`);
+      } else {
+        const token = event.request.headers.get("authorization");
+        if (token) headers.set("authorization", token);
+      }
     }
     if (event.request.method !== "GET") headers.set("x-wishlist-same-origin", "1");
     const response = await fetch(upstream, {

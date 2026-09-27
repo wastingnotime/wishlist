@@ -15,3 +15,5 @@ If you used the former SQLite app, stop the old local app and run `make import-s
 The public board supports Voting, Producing, and Delivered views with app filters. Visitors can vote and submit private suggestions after email OTP verification. Admins can manage apps and features, review suggestions, and control the feature lifecycle at `/admin`.
 
 For local development, OTP codes are printed in the API terminal and `/admin` accepts the local token `local-development-admin-token`. This development adapter is not suitable for real users. Production startup is blocked until an email OTP provider is configured. See the app READMEs for setup and validation.
+
+Production admin sign-in uses Casdoor OIDC with an explicit subject allowlist. See the [API setup](apps/api/README.md) and [web setup](apps/web/README.md) for the required settings. The local admin token does not authorize production admin routes.

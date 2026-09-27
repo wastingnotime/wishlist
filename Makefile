@@ -52,4 +52,4 @@ test:
 	export WISHLIST_API_ADDR='127.0.0.1:18080'; \
 	export WNT_WEB_E2E_API_PORT=18080; \
 	export WNT_WEB_E2E_WEB_PORT=15173; \
-	(cd apps/web && npm run typecheck && npm run build && npm run test:e2e)
+	(cd apps/web && npm run typecheck && npm run test:auth && npm run build && npm run test:e2e)

@@ -25,6 +25,8 @@ type Server struct {
 	visitor       *application.Visitor
 	secureCookies bool
 	adminToken    string
+	adminOIDC     *AdminOIDC
+	casdoorAdmin  bool
 	admin         AdminStore
 }
 
@@ -39,12 +41,18 @@ type AdminStore interface {
 }
 
 func New(board *application.Board, visitor *application.Visitor, secureCookies bool, admin ...AdminStore) *Server {
-	server := &Server{board: board, visitor: visitor, secureCookies: secureCookies, adminToken: strings.TrimSpace(getEnv("WISHLIST_ADMIN_TOKEN"))}
+	casdoorAdmin := getEnv("APP_ENV") == "production" || getEnv("WISHLIST_ADMIN_AUTH_MODE") == "casdoor"
+	server := &Server{board: board, visitor: visitor, secureCookies: secureCookies, casdoorAdmin: casdoorAdmin}
+	if !casdoorAdmin {
+		server.adminToken = strings.TrimSpace(getEnv("WISHLIST_ADMIN_TOKEN"))
+	}
 	if len(admin) > 0 {
 		server.admin = admin[0]
 	}
 	return server
 }
+
+func (server *Server) UseAdminOIDC(auth *AdminOIDC) { server.adminOIDC = auth }
 
 func getEnv(key string) string { return os.Getenv(key) }
 
@@ -61,6 +69,7 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/features/{id}/vote", server.toggleVote)
 	mux.HandleFunc("POST /v1/suggestions", server.submitSuggestion)
 	mux.HandleFunc("POST /v1/admin/apps", server.adminCreateApp)
+	mux.HandleFunc("GET /v1/admin/session", server.adminSession)
 	mux.HandleFunc("GET /v1/admin/apps", server.adminListApps)
 	mux.HandleFunc("PATCH /v1/admin/apps/{id}", server.adminUpdateApp)
 	mux.HandleFunc("POST /v1/admin/features", server.adminCreateFeature)
@@ -281,16 +290,37 @@ func writeError(w http.ResponseWriter, status int, code string) {
 }
 
 func (server *Server) authorizeAdmin(w http.ResponseWriter, r *http.Request) bool {
-	got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if server.adminToken == "" || len(got) != len(server.adminToken) || subtle.ConstantTimeCompare([]byte(got), []byte(server.adminToken)) != 1 {
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return false
+	if server.casdoorAdmin {
+		if server.adminOIDC == nil {
+			writeError(w, http.StatusServiceUnavailable, "admin_unavailable")
+			return false
+		}
+		if _, err := server.adminOIDC.Authorize(r); err != nil {
+			if errors.Is(err, errAdminForbidden) {
+				writeError(w, http.StatusForbidden, "forbidden")
+			} else {
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+			}
+			return false
+		}
+	} else {
+		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if server.adminToken == "" || len(got) != len(server.adminToken) || subtle.ConstantTimeCompare([]byte(got), []byte(server.adminToken)) != 1 {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return false
+		}
 	}
 	if server.admin == nil {
 		writeError(w, http.StatusServiceUnavailable, "admin_unavailable")
 		return false
 	}
 	return true
+}
+func (server *Server) adminSession(w http.ResponseWriter, r *http.Request) {
+	if !server.authorizeAdmin(w, r) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"authorized": true})
 }
 func (server *Server) adminCreateApp(w http.ResponseWriter, r *http.Request) {
 	if !server.authorizeAdmin(w, r) {

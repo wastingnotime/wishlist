@@ -11,18 +11,26 @@ export default function Admin() {
   const [notice, setNotice] = createSignal("");
   const [refresh, setRefresh] = createSignal(0);
   const [ready, setReady] = createSignal(false);
-  onMount(() => setReady(true));
-  const auth = () => ({ authorization: `Bearer ${token()}` });
-  const [apps] = createResource(() => [refresh(), token()] as const, async ([, key]) => key ? (await api<{ apps: App[] }>("admin/apps", { headers: { authorization: `Bearer ${key}` } })).apps : []);
-  const [suggestions] = createResource(() => [refresh(), token()] as const, async ([, key]) => key ? (await api<{ suggestions: Suggestion[] }>("admin/suggestions", { headers: { authorization: `Bearer ${key}` } })).suggestions : []);
-  const [features] = createResource(() => [refresh(), token()] as const, async ([, key]) => {
+  const [adminSession, setAdminSession] = createSignal<{ mode: "loading" | "token" | "casdoor"; authorized: boolean }>({ mode: "loading", authorized: false });
+  onMount(() => {
+    setReady(true);
+    void fetch("/auth/admin-session", { cache: "no-store" })
+      .then(async response => { if (!response.ok) throw new Error("Admin login is unavailable."); return response.json(); })
+      .then(setAdminSession)
+      .catch(() => setNotice("Admin login is unavailable. Refresh and try again."));
+  });
+  const auth = (): Record<string, string> => adminSession().mode === "casdoor" ? {} : { authorization: `Bearer ${token()}` };
+  const accessKey = () => adminSession().mode === "casdoor" ? (adminSession().authorized ? "casdoor" : "") : (adminSession().mode === "token" ? token() : "");
+  const [apps] = createResource(() => [refresh(), accessKey()] as const, async ([, key]) => key ? (await api<{ apps: App[] }>("admin/apps", { headers: auth() })).apps : []);
+  const [suggestions] = createResource(() => [refresh(), accessKey()] as const, async ([, key]) => key ? (await api<{ suggestions: Suggestion[] }>("admin/suggestions", { headers: auth() })).suggestions : []);
+  const [features] = createResource(() => [refresh(), accessKey()] as const, async ([, key]) => {
     if (!key) return [];
     const groups = await Promise.all(((["voting", "producing", "delivered"] as const).map(async view => (await api<{ features: Feature[] }>(`features?view=${view}`)).features)));
     return groups.flat();
   });
   const run = async (action: () => Promise<unknown>, message: string) => {
     try { await action(); setNotice(message); setRefresh(value => value + 1); }
-    catch { setNotice("The action failed. Check the admin token and entered values."); }
+    catch { setNotice(adminSession().mode === "casdoor" ? "The action failed. Check your admin access and entered values." : "The action failed. Check the admin token and entered values."); }
   };
   const createApp = async (event: SubmitEvent) => {
     event.preventDefault(); const htmlForm=event.currentTarget as HTMLFormElement;const form = new FormData(htmlForm);
@@ -66,9 +74,11 @@ export default function Admin() {
     <header class="admin-head"><a href="/">← Public Wishlist</a><span>WNT / ADMIN</span></header>
     <h1>Manage the wishlist</h1>
     <p class="admin-intro">Admin actions decide what becomes public and what moves into production. Votes remain a signal.</p>
-    <label class="admin-token">Admin access token<input type="password" autocomplete="off" disabled={!ready()} value={token()} onInput={event => setToken(event.currentTarget.value)} placeholder="Enter WISHLIST_ADMIN_TOKEN" /></label>
+    <Show when={adminSession().mode === "token"}><label class="admin-token">Admin access token<input type="password" autocomplete="off" disabled={!ready()} value={token()} onInput={event => setToken(event.currentTarget.value)} placeholder="Enter WISHLIST_ADMIN_TOKEN" /></label></Show>
+    <Show when={adminSession().mode === "casdoor" && adminSession().authorized}><p class="admin-intro">Signed in with Casdoor. <a class="admin-auth-link" href="/auth/logout">Sign out</a></p></Show>
+    <Show when={adminSession().mode === "casdoor" && !adminSession().authorized}><div class="admin-login"><p>{new URLSearchParams(typeof window === "undefined" ? "" : window.location.search).get("error") === "forbidden" ? "This Casdoor account is not authorized to manage the Wishlist." : "Sign in with an authorized WNT account to manage the Wishlist."}</p><a class="admin-auth-link" href="/auth/login">Sign in with Casdoor →</a></div></Show>
     <Show when={notice()}><p role="status" class="admin-notice">{notice()}</p></Show>
-    <Show when={token()} fallback={<p class="admin-intro">Enter the admin token to manage apps, features, and suggestions.</p>}>
+    <Show when={accessKey()} fallback={<Show when={adminSession().mode === "token"}><p class="admin-intro">Enter the admin token to manage apps, features, and suggestions.</p></Show>}>
       <div class="admin-grid">
         <section class="admin-panel"><h2>Apps</h2>
           <form onSubmit={createApp}><label>Slug<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" /></label><label>Name<input name="name" required maxlength="100" /></label><label>Description<input name="description" maxlength="500" /></label><label>URL<input name="url" type="url" /></label><button>Create app</button></form>

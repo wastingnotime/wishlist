@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -23,6 +24,20 @@ func main() {
 	}
 	defer store.Close()
 	production := os.Getenv("APP_ENV") == "production"
+	casdoorAdmin := production || os.Getenv("WISHLIST_ADMIN_AUTH_MODE") == "casdoor"
+	var adminOIDC *httpapi.AdminOIDC
+	if casdoorAdmin {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		adminOIDC, err = httpapi.NewAdminOIDC(ctx,
+			os.Getenv("WISHLIST_OIDC_DISCOVERY_URL"),
+			os.Getenv("WISHLIST_OIDC_ISSUER"),
+			os.Getenv("WISHLIST_OIDC_AUDIENCE"),
+			os.Getenv("WISHLIST_ADMIN_SUBJECTS"))
+		cancel()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	if production {
 		log.Fatal("production OTP email delivery is not configured; refuse to start with the development code logger")
 	}
@@ -45,15 +60,16 @@ func main() {
 	}
 	secureCookies := production
 	adminToken := os.Getenv("WISHLIST_ADMIN_TOKEN")
-	if secureCookies && adminToken == "" {
-		log.Fatal("WISHLIST_ADMIN_TOKEN is required in production")
-	}
-	if adminToken == "" {
+	if !casdoorAdmin && adminToken == "" {
 		adminToken = "local-development-admin-token"
 		_ = os.Setenv("WISHLIST_ADMIN_TOKEN", adminToken)
 		log.Print("using local development admin token; configure WISHLIST_ADMIN_TOKEN before deployment")
 	}
-	server := &http.Server{Addr: addr, Handler: httpapi.New(board, visitor, secureCookies, store).Handler()}
+	apiServer := httpapi.New(board, visitor, secureCookies, store)
+	if casdoorAdmin {
+		apiServer.UseAdminOIDC(adminOIDC)
+	}
+	server := &http.Server{Addr: addr, Handler: apiServer.Handler()}
 	log.Printf("Wishlist API listening on http://%s", addr)
 	log.Fatal(server.ListenAndServe())
 }

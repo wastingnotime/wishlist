@@ -23,6 +23,12 @@ Run `docker compose up -d --wait postgres` from the repository root before start
 
 The API's OTP logger and local admin/OTP keys are for development only. Production API startup is blocked until a real email OTP sender is configured.
 
+## Casdoor admin login
+
+Set `APP_ENV=production` (or `WISHLIST_ADMIN_AUTH_MODE=casdoor` for a validation environment) in both web and API services. Register the exact web callback URI `/auth/callback` with the Casdoor application. Configure the web service with `WISHLIST_OIDC_DISCOVERY_URL`, `WISHLIST_OIDC_ISSUER`, `WISHLIST_OIDC_CLIENT_ID`, `WISHLIST_OIDC_CLIENT_SECRET`, `WISHLIST_OIDC_REDIRECT_URI`, `WISHLIST_OIDC_AUDIENCE`, and `WISHLIST_SESSION_KEY` (a base64-encoded 32-byte random key). Configure the API with the same discovery URL, issuer, audience, and `WISHLIST_ADMIN_SUBJECTS`. Use an audience/resource that Casdoor places in the signed access token. Production OIDC URLs must use HTTPS. A validation environment using plain HTTP can set `WISHLIST_COOKIE_SECURE=false`; production cookies always use `Secure`.
+
+The `/admin` page offers Casdoor sign-in. The server exchanges the authorization code with PKCE and state, checks the signed token through the API, and stores the token in an encrypted HttpOnly cookie. Only configured subject IDs can enter the admin console. The browser never receives the access token or the old admin token. `/auth/logout` clears the local admin session.
+
 ## Validate
 
 ```bash

@@ -1,6 +1,6 @@
 # Admin catalog and moderation adapter contract
 
-`app.interfaces.admin_adapter.AdminAdapter` maps bearer-authorized admin requests to the existing Wishlist use cases. The transport token is separate from visitor OTP sessions. Unauthorized requests return `401`; admin data and mutation routes are never public.
+`app.interfaces.admin_adapter.AdminAdapter` maps bearer-authorized admin requests to the existing Wishlist use cases. The transport credential is separate from visitor OTP sessions. Unauthorized requests return `401`; admin data and mutation routes are never public. In the production web/API adapter, a Casdoor OIDC login supplies a signed access token, and the API grants admin authority only to configured Casdoor subjects. The local development token remains a local adapter. Casdoor authentication does not alter the domain's admin decisions.
 
 | Method | Route | Contract |
 | --- | --- | --- |
