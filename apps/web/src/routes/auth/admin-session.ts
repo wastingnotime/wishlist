@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { adminAuthMode, sessionAccessToken } from "../../lib/admin-auth";
+import { adminAuthMode, sessionAccessToken, wishlistAPIBaseURL } from "../../lib/admin-auth";
 
 export async function GET(event: APIEvent) {
   const mode = adminAuthMode();
@@ -7,7 +7,7 @@ export async function GET(event: APIEvent) {
   const token = sessionAccessToken(event.request);
   if (!token) return Response.json({ mode, authorized: false }, { headers: { "cache-control": "no-store" } });
   try {
-    const response = await fetch(new URL("/v1/admin/session", process.env.WISHLIST_API_URL ?? "http://127.0.0.1:8080"), {
+    const response = await fetch(new URL("/v1/admin/session", wishlistAPIBaseURL()), {
       headers: { authorization: `Bearer ${token}` }, cache: "no-store",
     });
     return Response.json({ mode, authorized: response.ok }, { headers: { "cache-control": "no-store" } });

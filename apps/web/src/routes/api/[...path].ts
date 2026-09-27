@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { adminAuthMode, sessionAccessToken } from "../../lib/admin-auth";
+import { adminAuthMode, sessionAccessToken, wishlistAPIBaseURL } from "../../lib/admin-auth";
 
 const routes = new Map<string, Set<string>>([
   ["apps", new Set(["GET"])],
@@ -23,14 +23,12 @@ async function proxy(event: APIEvent) {
   if (!methods) return Response.json({ error: { code: "not_found" } }, { status: 404 });
   if (!methods.has(event.request.method)) return Response.json({ error: { code: "method_not_allowed" } }, { status: 405 });
 
-  const processEnv = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env;
-  const upstreamBase = processEnv?.WISHLIST_API_URL ?? "http://127.0.0.1:8080";
   const incoming = new URL(event.request.url);
   if (event.request.method !== "GET" && event.request.headers.get("origin") !== incoming.origin) {
     return Response.json({ error: { code: "forbidden" } }, { status: 403 });
   }
-  const upstream = new URL(`/v1/${path}${incoming.search}`, upstreamBase);
   try {
+    const upstream = new URL(`/v1/${path}${incoming.search}`, wishlistAPIBaseURL());
     const headers = new Headers();
     for (const name of ["content-type", "cookie"]) {
       const value = event.request.headers.get(name);

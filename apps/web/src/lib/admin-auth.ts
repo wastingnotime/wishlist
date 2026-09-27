@@ -10,6 +10,14 @@ export function adminAuthMode(): "casdoor" | "token" {
   return process.env.APP_ENV === "production" || process.env.WISHLIST_ADMIN_AUTH_MODE === "casdoor" ? "casdoor" : "token";
 }
 
+export function wishlistAPIBaseURL(): string {
+  const configured = process.env.WISHLIST_API_URL?.trim();
+  if (!configured && process.env.APP_ENV === "production") {
+    throw new Error("WISHLIST_API_URL is required in production");
+  }
+  return configured || "http://127.0.0.1:8080";
+}
+
 function required(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
@@ -110,7 +118,7 @@ export async function completeAuthorization(request: Request): Promise<string> {
   const response = await fetch(metadata.token_endpoint, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body, cache: "no-store" });
   const result = await response.json() as { access_token?: string; expires_in?: number };
   if (!response.ok || !result.access_token) throw new Error("OIDC token exchange failed");
-  const check = await fetch(new URL("/v1/admin/session", process.env.WISHLIST_API_URL ?? "http://127.0.0.1:8080"), {
+  const check = await fetch(new URL("/v1/admin/session", wishlistAPIBaseURL()), {
     headers: { authorization: `Bearer ${result.access_token}` }, cache: "no-store",
   });
   if (check.status === 403) throw new Error("admin subject is not allowed");

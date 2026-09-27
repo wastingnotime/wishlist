@@ -14,7 +14,7 @@ The API listens on `127.0.0.1:8080`. `WISHLIST_DATABASE_URL` is required; startu
 
 Production admin access uses Casdoor OIDC. Configure `WISHLIST_OIDC_DISCOVERY_URL`, `WISHLIST_OIDC_ISSUER`, `WISHLIST_OIDC_AUDIENCE`, and a comma-separated `WISHLIST_ADMIN_SUBJECTS` list of Casdoor subject IDs. The API verifies the token signature, issuer, audience, and expiry, then checks the subject for every admin request. The local bearer token is ignored when `APP_ENV=production` or `WISHLIST_ADMIN_AUTH_MODE=casdoor`. `GET /v1/admin/session` lets the web callback confirm admin authority. An ordinary Casdoor login does not grant admin access.
 
-Production startup still fails until a production email OTP adapter exists. The local code logger and default keys are development-only.
+Production startup still fails until a production email OTP adapter exists. Production startup also omits the local demo catalog; an admin must create production apps after the first launch. The local code logger and default keys are development-only. See the repository's [production readiness record](../../work/changes/wishlist-production-readiness/production_readiness.md) for remaining candidate and infrastructure gates.
 
 ## Routes
 

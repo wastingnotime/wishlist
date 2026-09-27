@@ -1,0 +1,54 @@
+name: Wishlist quality and image build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wishlist-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      WNT_WEB_E2E_OUTPUT: ${{ runner.temp }}/wishlist-browser-e2e.json
+      WNT_WEB_E2E_ARTIFACT_DIR: ${{ runner.temp }}/wishlist-browser-artifacts
+      WNT_WEB_E2E_TRACE: retain-on-failure
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Run PostgreSQL, API, and browser checks
+        run: make test
+      - name: Build production runtime images
+        run: make build-images IMAGE_TAG=ci
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wishlist-browser-e2e-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/wishlist-browser-e2e.json
+            ${{ runner.temp }}/wishlist-browser-artifacts/
+          if-no-files-found: ignore
+          retention-days: 30

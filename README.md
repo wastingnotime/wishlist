@@ -17,3 +17,5 @@ The public board supports Voting, Producing, and Delivered views with app filter
 For local development, OTP codes are printed in the API terminal and `/admin` accepts the local token `local-development-admin-token`. This development adapter is not suitable for real users. Production startup is blocked until an email OTP provider is configured. See the app READMEs for setup and validation.
 
 Production admin sign-in uses Casdoor OIDC with an explicit subject allowlist. See the [API setup](apps/api/README.md) and [web setup](apps/web/README.md) for the required settings. The local admin token does not authorize production admin routes.
+
+Production preparation and remaining release gates are tracked in [the production readiness record](work/changes/wishlist-production-readiness/production_readiness.md). Build local runtime images with `make build-images`.

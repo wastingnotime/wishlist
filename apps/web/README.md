@@ -21,7 +21,7 @@ npm run dev -- --port 5173
 
 Run `docker compose up -d --wait postgres` from the repository root before starting the API, or use `make local` to start the database and both apps together. PostgreSQL data persists in the `wishlist_wishlist_postgres` Docker volume. Local OTP codes appear in the API terminal. Visit `/admin` and use the local token `local-development-admin-token`. Configure `WISHLIST_API_URL` if the API is not at `http://127.0.0.1:8080`.
 
-The API's OTP logger and local admin/OTP keys are for development only. Production API startup is blocked until a real email OTP sender is configured.
+The API's OTP logger and local admin/OTP keys are for development only. Production API startup is blocked until a real email OTP sender is configured. Production requests require `WISHLIST_API_URL` to point to the API service inside the runtime network; the localhost fallback is development-only.
 
 ## Casdoor admin login
 

@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/wastingnotime/wishlist/apps/api/internal/application"
+	"github.com/wastingnotime/wishlist/apps/api/internal/domain"
 	"github.com/wastingnotime/wishlist/apps/api/internal/httpapi"
 	"github.com/wastingnotime/wishlist/apps/api/internal/infrastructure"
 )
 
 func main() {
-	seed, err := infrastructure.SampleBoard()
+	production := os.Getenv("APP_ENV") == "production"
+	seed, err := startupSeed(production)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -23,7 +25,6 @@ func main() {
 		log.Fatal(err)
 	}
 	defer store.Close()
-	production := os.Getenv("APP_ENV") == "production"
 	casdoorAdmin := production || os.Getenv("WISHLIST_ADMIN_AUTH_MODE") == "casdoor"
 	var adminOIDC *httpapi.AdminOIDC
 	if casdoorAdmin {
@@ -72,6 +73,13 @@ func main() {
 	server := &http.Server{Addr: addr, Handler: apiServer.Handler()}
 	log.Printf("Wishlist API listening on http://%s", addr)
 	log.Fatal(server.ListenAndServe())
+}
+
+func startupSeed(production bool) (domain.Board, error) {
+	if production {
+		return domain.NewBoard(nil, nil)
+	}
+	return infrastructure.SampleBoard()
 }
 
 type systemClock struct{}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import { after, test } from "node:test";
-import { authorizationRedirect, completeAuthorization, sessionAccessToken } from "./admin-auth.ts";
+import { authorizationRedirect, completeAuthorization, sessionAccessToken, wishlistAPIBaseURL } from "./admin-auth.ts";
 
 let providerURL = "";
 const provider = createServer((request, response) => {
@@ -51,4 +51,18 @@ test("OIDC code flow uses state and PKCE, then stores only a sealed server sessi
   assert.ok(!session.includes("signed-test-token"));
   assert.equal(sessionAccessToken(new Request("https://wishlist.example/admin", { headers: { cookie: session.split(";")[0] } })), "signed-test-token");
   assert.equal(sessionAccessToken(new Request("https://wishlist.example/admin", { headers: { cookie: session.split(";")[0] + "tampered" } })), "");
+});
+
+test("production requires an explicit API service URL", () => {
+  const previousEnv = process.env.APP_ENV;
+  const previousURL = process.env.WISHLIST_API_URL;
+  process.env.APP_ENV = "production";
+  delete process.env.WISHLIST_API_URL;
+  assert.throws(() => wishlistAPIBaseURL(), /WISHLIST_API_URL is required in production/);
+  process.env.WISHLIST_API_URL = "http://wishlist-api:8080";
+  assert.equal(wishlistAPIBaseURL(), "http://wishlist-api:8080");
+  if (previousEnv === undefined) delete process.env.APP_ENV;
+  else process.env.APP_ENV = previousEnv;
+  if (previousURL === undefined) delete process.env.WISHLIST_API_URL;
+  else process.env.WISHLIST_API_URL = previousURL;
 });

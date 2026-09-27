@@ -1,4 +1,11 @@
-.PHONY: local dev test import-sqlite
+API_IMAGE_NAME ?= wishlist-api
+WEB_IMAGE_NAME ?= wishlist-web
+IMAGE_TAG ?= local
+IMAGE_SOURCE ?= https://github.com/wastingnotime/wishlist
+VCS_REF ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+
+.PHONY: local dev test import-sqlite build-images build-api-image build-web-image
 
 # Start the local PostgreSQL database, API, and web app. Stop the app with
 # Ctrl-C; the PostgreSQL container and its data stay available for the next run.
@@ -53,3 +60,17 @@ test:
 	export WNT_WEB_E2E_API_PORT=18080; \
 	export WNT_WEB_E2E_WEB_PORT=15173; \
 	(cd apps/web && npm run typecheck && npm run test:auth && npm run build && npm run test:e2e)
+
+# Build OCI-labeled production runtime candidates locally; publishing is owned
+# by the repository's eventual candidate-image workflow.
+build-images: build-api-image build-web-image
+
+build-api-image:
+	docker build --file apps/api/Dockerfile --tag $(API_IMAGE_NAME):$(IMAGE_TAG) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) --build-arg IMAGE_SOURCE=$(IMAGE_SOURCE) \
+		--build-arg VCS_REF=$(VCS_REF) apps/api
+
+build-web-image:
+	docker build --file apps/web/Dockerfile --tag $(WEB_IMAGE_NAME):$(IMAGE_TAG) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) --build-arg IMAGE_SOURCE=$(IMAGE_SOURCE) \
+		--build-arg VCS_REF=$(VCS_REF) apps/web
