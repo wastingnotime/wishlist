@@ -140,7 +140,7 @@ class Wishlist:
         self._admin(key)
         self._feature(feature_id)
         limits = {"title": 160, "description": 2000, "delivery_url": 1000}
-        if not changes or set(changes) - limits:
+        if not changes or set(changes) - set(limits):
             raise DomainError("Invalid feature update")
         for field, value in changes.items():
             changes[field] = _url(value, 1000) if field == "delivery_url" else _bounded(

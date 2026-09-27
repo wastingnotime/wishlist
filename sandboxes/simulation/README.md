@@ -16,4 +16,6 @@ Run the complete acceptance scenario and print its semantic observations:
 PYTHONPATH="$HOME/.wnt/runtime/mrl:sandboxes/simulation/src" python3 sandboxes/simulation/tools/run_scenario.py
 ```
 
+Add `--summary` for a compact, checked result. The [causal journey](docs/evaluation/causal-journey.md) describes its actors, named use cases, and observatory graph. `mrl-simulation supervise` displays that graph interactively.
+
 Model version 0.1.0 released the public board read adapter, 0.2.0 released visitor identity and writes, 0.3.0 released admin catalog and moderation routes, and 0.4.0 synchronizes the model with materialized app behavior. See the [visitor contract](docs/adapters/visitor-writes.md), [admin contract](docs/adapters/admin-writes.md), and the EGD/release records under `work/changes/wishlist-model-release-0.2.0/` through `work/changes/wishlist-model-release-0.4.0/`. App projects must validate their technology-specific behavior and security boundaries.

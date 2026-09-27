@@ -290,3 +290,16 @@ def test_materialized_app_catalog_and_moderation_contract(model):
     assert admin.handle(AdminRequest("GET", "/v1/admin/session", token="admin")).body == {"authorized": True}
     rows = admin.handle(AdminRequest("GET", "/v1/admin/suggestions", token="admin")).body["suggestions"]
     assert set(rows[0]) == {"id", "app_id", "title", "description", "created_at"}
+
+
+def test_admin_feature_update_advances_and_edits(model):
+    service, _ = model
+    app = service.admin_create_app("admin", "cat-care", "Cat Care")
+    feature = service.admin_create_feature("admin", app, "sharing", "Sharing")
+    response = AdminAdapter(service).handle(AdminRequest(
+        "PATCH", f"/v1/admin/features/{feature}",
+        {"status": "producing", "title": "Family sharing", "description": "In progress"}, token="admin"))
+    assert response.status == 204
+    assert service.state.features[feature]["status"] == "producing"
+    assert service.state.features[feature]["title"] == "Family sharing"
+    assert service.state.features[feature]["description"] == "In progress"
