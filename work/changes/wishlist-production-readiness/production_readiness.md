@@ -28,13 +28,14 @@ These checks validate local artifacts only. They do not publish images or establ
 - [x] Infra-platform selected Mailgun and merged the consumer contract in [PR #659](https://github.com/wastingnotime/infra-platform/pull/659).
 - [x] Infra-platform provisioned the SMTP password in Secrets Manager after Terraform created `/wnt/email/smtp-password` (2026-09-28). The value remains in the vault and Secrets Manager only.
 - [x] Implemented the production Go SMTP OTP adapter against the platform settings. It requires STARTTLS with certificate validation, reads the mounted Docker secret, and bounds send time.
-- [ ] Infra-platform materializes the password as a Docker secret on the Swarm manager and attaches it to the reviewed Wishlist API stack.
+- [x] Infra-platform materialized the password as Docker secret `wnt-email-smtp-password-d2aacfeaf72a` on the Swarm manager (SSM run `c56e1446-d1b5-4ad6-9a20-3e7c0a6ef0cb`, 2026-09-28).
+- [ ] Attach the Docker secret to the reviewed Wishlist API stack after the Wishlist image and runtime contract are accepted.
 - [ ] Deploy the reviewed Wishlist candidate and verify end-to-end OTP receipt and verification through the production SMTP path.
 
 ## Release blockers and external inputs
 
-- [ ] Publish and promote a reviewed Wishlist API/web candidate through infra-platform; no Wishlist image-publishing role or production ECR repositories are recorded in the current product contract.
-- [ ] Establish the production ECR publisher role/repositories and candidate image naming with infra-platform. No Wishlist image-publishing role or ECR repository contract exists in the current infra-platform surface.
+- [ ] Add Wishlist image publishing authority and immutable ECR repositories in infra-platform; its AWS account currently has no Wishlist publisher role or repositories. A manual candidate-publishing workflow is being prepared in Wishlist.
+- [ ] Add the Wishlist application stack, production runtime settings, and reviewed promotion path in infra-platform.
 - [ ] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.
 - [ ] Agree with infra-platform on production service names, public route, ports, PostgreSQL placement/credentials, replicas, resources, and rollout/rollback expectations.
 - [ ] Run candidate validation and preserve its validation result, promotion handoff, release notes, image digest, and build provenance.
@@ -42,7 +43,7 @@ These checks validate local artifacts only. They do not publish images or establ
 
 ## Required runtime settings
 
-The API needs `APP_ENV=production`, `WISHLIST_DATABASE_URL`, `WISHLIST_OTP_SECRET`, Casdoor discovery URL, issuer and audience, and the allowed Casdoor subject IDs. Once the OTP provider is selected, its sender-specific settings must also be supplied as secrets. The web service needs `APP_ENV=production`, an internal `WISHLIST_API_URL`, Casdoor discovery URL, issuer, client id and secret, redirect URI, audience, and a base64 encoded 32-byte `WISHLIST_SESSION_KEY`. Production OIDC endpoints and the public callback must use HTTPS.
+The API needs `APP_ENV=production`, `WISHLIST_DATABASE_URL`, `WISHLIST_OTP_SECRET`, Casdoor discovery URL, issuer and audience, allowed Casdoor subject IDs, `WNT_EMAIL_SMTP_HOST`, `WNT_EMAIL_SMTP_PORT`, `WNT_EMAIL_SMTP_USERNAME`, `WNT_EMAIL_SMTP_PASSWORD_FILE`, and `WNT_EMAIL_FROM`. `WNT_EMAIL_REPLY_TO` is optional. The web service needs `APP_ENV=production`, an internal `WISHLIST_API_URL`, Casdoor discovery URL, issuer, client ID and secret, redirect URI, audience, and a base64 encoded 32-byte `WISHLIST_SESSION_KEY`. Production OIDC endpoints and the public callback must use HTTPS.
 
 Keep all credentials in the deployment secret store. The local PostgreSQL password, demo admin token, and OTP logger are development-only.
 
