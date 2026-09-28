@@ -1,0 +1,84 @@
+name: Publish Wishlist candidate images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wishlist-candidate-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      REGISTRY: 590183855481.dkr.ecr.us-east-1.amazonaws.com
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::590183855481:role/github-actions-wishlist-publisher
+          role-session-name: wishlist-candidate-publisher
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+      - name: Authenticate to ECR
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$REGISTRY"
+      - name: Build and publish API candidate
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --file apps/api/Dockerfile \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
+            --build-arg VCS_REF="$IMAGE_TAG" \
+            --tag "$REGISTRY/wishlist-api:$IMAGE_TAG" \
+            --metadata-file /tmp/wishlist-api-image.json \
+            --push apps/api
+      - name: Build and publish web candidate
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --file apps/web/Dockerfile \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
+            --build-arg VCS_REF="$IMAGE_TAG" \
+            --tag "$REGISTRY/wishlist-web:$IMAGE_TAG" \
+            --metadata-file /tmp/wishlist-web-image.json \
+            --push apps/web
+      - name: Write candidate handoff
+        run: |
+          api_digest="$(jq -r '.["containerimage.digest"]' /tmp/wishlist-api-image.json)"
+          web_digest="$(jq -r '.["containerimage.digest"]' /tmp/wishlist-web-image.json)"
+          test -n "$api_digest" && test "$api_digest" != null
+          test -n "$web_digest" && test "$web_digest" != null
+          cat > wishlist-candidate-handoff.md <<EOF
+          # Wishlist candidate handoff
+
+          - Source revision: \`${GITHUB_SHA}\`
+          - Source repository: \`${GITHUB_REPOSITORY}\`
+          - Candidate workflow: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - API image: \`${REGISTRY}/wishlist-api@${api_digest}\`
+          - Web image: \`${REGISTRY}/wishlist-web@${web_digest}\`
+          - Target architecture: \`linux/arm64\`
+
+          These are candidate images. Production promotion remains owned by infra-platform and requires a reviewed digest-bearing stack change.
+          EOF
+          cat wishlist-candidate-handoff.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wishlist-candidate-handoff-${{ github.sha }}
+          path: wishlist-candidate-handoff.md
+          if-no-files-found: error
+          retention-days: 90
