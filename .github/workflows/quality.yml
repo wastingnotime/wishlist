@@ -17,10 +17,6 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    env:
-      WNT_WEB_E2E_OUTPUT: ${{ runner.temp }}/wishlist-browser-e2e.json
-      WNT_WEB_E2E_ARTIFACT_DIR: ${{ runner.temp }}/wishlist-browser-artifacts
-      WNT_WEB_E2E_TRACE: retain-on-failure
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -39,6 +35,10 @@ jobs:
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
       - name: Run PostgreSQL, API, and browser checks
+        env:
+          WNT_WEB_E2E_OUTPUT: ${{ runner.temp }}/wishlist-browser-e2e.json
+          WNT_WEB_E2E_ARTIFACT_DIR: ${{ runner.temp }}/wishlist-browser-artifacts
+          WNT_WEB_E2E_TRACE: retain-on-failure
         run: make test
       - name: Build production runtime images
         run: make build-images IMAGE_TAG=ci
