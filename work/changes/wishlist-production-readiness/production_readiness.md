@@ -5,6 +5,7 @@ Status: preparation in progress; production release is not yet eligible.
 ## Repository-side preparation
 
 - [x] API and web container builds use separate non-root runtime images.
+- [x] API container cross-compiles arm64 from the native BuildKit platform rather than running the Go compiler under target-architecture emulation.
 - [x] Images carry OCI source, revision, and build-time labels.
 - [x] API health checks database readiness at `/readyz`; web image exposes `/healthz` without calling the API.
 - [x] Production API startup does not insert the local Cat Care / Sliding Tasks demo catalog.
@@ -20,7 +21,10 @@ Status: preparation in progress; production release is not yet eligible.
 - [x] Follow-up web typecheck and admin auth tests passed after adding the production API URL guard test.
 - [x] Production SMTP adapter configuration and message tests passed with `make test`; the four Playwright browser flows passed.
 - [x] API and web production images built locally with `make build-images IMAGE_TAG=otp-review`.
-- [x] [Wishlist PR #2](https://github.com/wastingnotime/wishlist/pull/2) CI passed after adding the production SMTP adapter; manual candidate publishing is included pending review and infra ECR provisioning.
+- [x] [Wishlist PR #2](https://github.com/wastingnotime/wishlist/pull/2) merged with the production SMTP adapter and manual candidate publishing workflow.
+- [x] Infra-platform applied immutable Wishlist ECR repositories and the dedicated main-branch publisher role (2026-09-28).
+- [ ] Candidate push requires `ecr:BatchGetImage`, which Docker Buildx calls during manifest publication. The first candidate run built the API image, then failed at ECR push; infra-platform PR #664 adds this repository-scoped permission and awaits apply.
+- [ ] Retry candidate publication after the publisher policy is updated; preserve its digest handoff for infra-platform promotion.
 
 These checks validate local artifacts only. They do not publish images or establish production readiness in infra-platform.
 
@@ -35,7 +39,7 @@ These checks validate local artifacts only. They do not publish images or establ
 
 ## Release blockers and external inputs
 
-- [ ] Add Wishlist image publishing authority and immutable ECR repositories through [infra-platform issue #662](https://github.com/wastingnotime/infra-platform/issues/662); its AWS account currently has no Wishlist publisher role or repositories. The manual candidate-publishing workflow is under review in [Wishlist PR #2](https://github.com/wastingnotime/wishlist/pull/2).
+- [ ] Complete the Wishlist candidate publish permission fix through [infra-platform issue #662](https://github.com/wastingnotime/infra-platform/issues/662) and [infra-platform PR #664](https://github.com/wastingnotime/infra-platform/pull/664).
 - [ ] Add the Wishlist application stack, production runtime settings, and reviewed promotion path in infra-platform.
 - [ ] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.
 - [ ] Agree with infra-platform on production service names, public route, ports, PostgreSQL placement/credentials, replicas, resources, and rollout/rollback expectations.
