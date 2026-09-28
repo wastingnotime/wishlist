@@ -1,6 +1,7 @@
 import { A, useLocation } from "@solidjs/router";
 import { For, Show, createMemo, createResource, createSignal, onMount } from "solid-js";
 import { ApiError, api } from "../lib/api";
+import { appPath } from "../lib/paths";
 
 type View = "voting" | "producing" | "delivered";
 type AppChoice = { id: string; slug: string; name: string; description: string; url: string };
@@ -27,7 +28,7 @@ function safeView(raw: string | undefined): View {
 function boardURL(view: View, app: string) {
   const query = new URLSearchParams({ view });
   if (app) query.set("app", app);
-  return `/?${query.toString()}`;
+  return `${appPath("/")}?${query.toString()}`;
 }
 
 function dateLabel(value: string | null) {
@@ -89,7 +90,7 @@ export default function PublicBoard() {
       <aside class="side-label side-label-left" aria-hidden="true">wnt // wishlist</aside>
       <aside class="side-label side-label-right" aria-hidden="true">ideas in motion</aside>
       <header class="topbar">
-        <a class="brand" href="/" aria-label="Wasting No Time Wishlist home"><span class="brand-mark">wl</span><span>wnt / wishlist</span></a>
+        <a class="brand" href={appPath("/")} aria-label="Wasting No Time Wishlist home"><span class="brand-mark">wl</span><span>wnt / wishlist</span></a>
           <div class="header-actions"><span class="public-label"><span aria-hidden="true" class="online-dot" /> PUBLIC DEMAND BOARD</span><button class="suggest-button" disabled={!sessionLoaded()} onClick={()=>{setSuggestApp(apps()?.[0]?.id??"");setSuggestOpen(true);}}>Suggest an idea</button><A class="admin-nav-link" href="/admin">Admin</A><Show when={session()?.verified}><button class="signout-button" disabled={!sessionLoaded()} onClick={async()=>{await api("session",{method:"DELETE"});setSession(null);}}>Sign out</button></Show></div>
       </header>
 
