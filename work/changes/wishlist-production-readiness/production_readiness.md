@@ -20,6 +20,7 @@ Status: preparation in progress; production release is not yet eligible.
 - [x] Follow-up web typecheck and admin auth tests passed after adding the production API URL guard test.
 - [x] Production SMTP adapter configuration and message tests passed with `make test`; the four Playwright browser flows passed.
 - [x] API and web production images built locally with `make build-images IMAGE_TAG=otp-review`.
+- [x] [Wishlist PR #2](https://github.com/wastingnotime/wishlist/pull/2) CI passed after adding the production SMTP adapter; manual candidate publishing is included pending review and infra ECR provisioning.
 
 These checks validate local artifacts only. They do not publish images or establish production readiness in infra-platform.
 
@@ -34,7 +35,7 @@ These checks validate local artifacts only. They do not publish images or establ
 
 ## Release blockers and external inputs
 
-- [ ] Add Wishlist image publishing authority and immutable ECR repositories in infra-platform; its AWS account currently has no Wishlist publisher role or repositories. A manual candidate-publishing workflow is being prepared in Wishlist.
+- [ ] Add Wishlist image publishing authority and immutable ECR repositories through [infra-platform issue #662](https://github.com/wastingnotime/infra-platform/issues/662); its AWS account currently has no Wishlist publisher role or repositories. The manual candidate-publishing workflow is under review in [Wishlist PR #2](https://github.com/wastingnotime/wishlist/pull/2).
 - [ ] Add the Wishlist application stack, production runtime settings, and reviewed promotion path in infra-platform.
 - [ ] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.
 - [ ] Agree with infra-platform on production service names, public route, ports, PostgreSQL placement/credentials, replicas, resources, and rollout/rollback expectations.

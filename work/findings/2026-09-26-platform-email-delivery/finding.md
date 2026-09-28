@@ -70,4 +70,5 @@ contract.
 ## Linked Target Issues
 
 - target repository issue: https://github.com/wastingnotime/infra-platform/issues/658
+- Wishlist runtime onboarding: https://github.com/wastingnotime/infra-platform/issues/662
 - link back to local issue: https://github.com/wastingnotime/wishlist/issues/1
