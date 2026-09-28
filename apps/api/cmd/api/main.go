@@ -15,6 +15,19 @@ import (
 
 func main() {
 	production := os.Getenv("APP_ENV") == "production"
+	var otpSender application.OTPSender
+	if production {
+		var err error
+		otpSender, err = infrastructure.NewSMTPOTPSenderFromEnv()
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if mode := os.Getenv("WISHLIST_OTP_MODE"); mode != "" && mode != "log" {
+			log.Fatalf("unsupported WISHLIST_OTP_MODE %q", mode)
+		}
+		otpSender = infrastructure.LocalLoggingOTPSender{Logger: log.Default()}
+	}
 	seed, err := startupSeed(production)
 	if err != nil {
 		log.Fatal(err)
@@ -39,18 +52,15 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	if production {
-		log.Fatal("production OTP email delivery is not configured; refuse to start with the development code logger")
-	}
-	if mode := os.Getenv("WISHLIST_OTP_MODE"); mode != "" && mode != "log" {
-		log.Fatalf("unsupported WISHLIST_OTP_MODE %q; configure a production email adapter before using another mode", mode)
-	}
 	secret := os.Getenv("WISHLIST_OTP_SECRET")
 	if secret == "" {
+		if production {
+			log.Fatal("WISHLIST_OTP_SECRET is required in production")
+		}
 		secret = "local-development-secret-change-before-deploy"
 		log.Print("using local OTP digest secret; set WISHLIST_OTP_SECRET outside development")
 	}
-	visitor := application.NewVisitor(store, infrastructure.LocalLoggingOTPSender{Logger: log.Default()}, systemClock{}, secret)
+	visitor := application.NewVisitor(store, otpSender, systemClock{}, secret)
 	board := application.NewBoard(store)
 	addr := os.Getenv("WISHLIST_API_ADDR")
 	if addr == "" {

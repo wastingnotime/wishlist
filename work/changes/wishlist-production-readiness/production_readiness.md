@@ -18,12 +18,22 @@ Status: preparation in progress; production release is not yet eligible.
 - [x] API image smoke check returned healthy `/healthz` and `/readyz` responses with a disposable PostgreSQL database; the image runs as UID/GID `10001:10001`.
 - [x] Web image smoke check returned `ok` from `/healthz` and runs as the non-root `node` user.
 - [x] Follow-up web typecheck and admin auth tests passed after adding the production API URL guard test.
+- [x] Production SMTP adapter configuration and message tests passed with `make test`; the four Playwright browser flows passed.
+- [x] API and web production images built locally with `make build-images IMAGE_TAG=otp-review`.
 
 These checks validate local artifacts only. They do not publish images or establish production readiness in infra-platform.
 
+## Platform email handoff
+
+- [x] Infra-platform selected Mailgun and merged the consumer contract in [PR #659](https://github.com/wastingnotime/infra-platform/pull/659).
+- [x] Infra-platform provisioned the SMTP password in Secrets Manager after Terraform created `/wnt/email/smtp-password` (2026-09-28). The value remains in the vault and Secrets Manager only.
+- [x] Implemented the production Go SMTP OTP adapter against the platform settings. It requires STARTTLS with certificate validation, reads the mounted Docker secret, and bounds send time.
+- [ ] Infra-platform materializes the password as a Docker secret on the Swarm manager and attaches it to the reviewed Wishlist API stack.
+- [ ] Deploy the reviewed Wishlist candidate and verify end-to-end OTP receipt and verification through the production SMTP path.
+
 ## Release blockers and external inputs
 
-- [ ] Select and configure a real production OTP email provider. The API deliberately refuses production startup while it only has the development code logger.
+- [ ] Publish and promote a reviewed Wishlist API/web candidate through infra-platform; no Wishlist image-publishing role or production ECR repositories are recorded in the current product contract.
 - [ ] Establish the production ECR publisher role/repositories and candidate image naming with infra-platform. No Wishlist image-publishing role or ECR repository contract exists in the current infra-platform surface.
 - [ ] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.
 - [ ] Agree with infra-platform on production service names, public route, ports, PostgreSQL placement/credentials, replicas, resources, and rollout/rollback expectations.
