@@ -1,5 +1,6 @@
 import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { api } from "../lib/api";
+import { appPath } from "../lib/paths";
 
 type App = { id: string; slug: string; name: string; description: string; url: string; active: boolean };
 type Suggestion = { id: string; app_id: string; title: string; description: string; created_at: string };
@@ -14,7 +15,7 @@ export default function Admin() {
   const [adminSession, setAdminSession] = createSignal<{ mode: "loading" | "token" | "casdoor"; authorized: boolean }>({ mode: "loading", authorized: false });
   onMount(() => {
     setReady(true);
-    void fetch("/auth/admin-session", { cache: "no-store" })
+    void fetch(appPath("/auth/admin-session"), { cache: "no-store" })
       .then(async response => { if (!response.ok) throw new Error("Admin login is unavailable."); return response.json(); })
       .then(setAdminSession)
       .catch(() => setNotice("Admin login is unavailable. Refresh and try again."));
@@ -71,12 +72,12 @@ export default function Admin() {
   };
 
   return <main class="admin-shell">
-    <header class="admin-head"><a href="/">← Public Wishlist</a><span>WNT / ADMIN</span></header>
+    <header class="admin-head"><a href={appPath("/")}>← Public Wishlist</a><span>WNT / ADMIN</span></header>
     <h1>Manage the wishlist</h1>
     <p class="admin-intro">Admin actions decide what becomes public and what moves into production. Votes remain a signal.</p>
     <Show when={adminSession().mode === "token"}><label class="admin-token">Admin access token<input type="password" autocomplete="off" disabled={!ready()} value={token()} onInput={event => setToken(event.currentTarget.value)} placeholder="Enter WISHLIST_ADMIN_TOKEN" /></label></Show>
-    <Show when={adminSession().mode === "casdoor" && adminSession().authorized}><p class="admin-intro">Signed in with Casdoor. <a class="admin-auth-link" href="/auth/logout">Sign out</a></p></Show>
-    <Show when={adminSession().mode === "casdoor" && !adminSession().authorized}><div class="admin-login"><p>{new URLSearchParams(typeof window === "undefined" ? "" : window.location.search).get("error") === "forbidden" ? "This Casdoor account is not authorized to manage the Wishlist." : "Sign in with an authorized WNT account to manage the Wishlist."}</p><a class="admin-auth-link" href="/auth/login">Sign in with Casdoor →</a></div></Show>
+    <Show when={adminSession().mode === "casdoor" && adminSession().authorized}><p class="admin-intro">Signed in with Casdoor. <a class="admin-auth-link" href={appPath("/auth/logout")}>Sign out</a></p></Show>
+    <Show when={adminSession().mode === "casdoor" && !adminSession().authorized}><div class="admin-login"><p>{new URLSearchParams(typeof window === "undefined" ? "" : window.location.search).get("error") === "forbidden" ? "This Casdoor account is not authorized to manage the Wishlist." : "Sign in with an authorized WNT account to manage the Wishlist."}</p><a class="admin-auth-link" href={appPath("/auth/login")}>Sign in with Casdoor →</a></div></Show>
     <Show when={notice()}><p role="status" class="admin-notice">{notice()}</p></Show>
     <Show when={accessKey()} fallback={<Show when={adminSession().mode === "token"}><p class="admin-intro">Enter the admin token to manage apps, features, and suggestions.</p></Show>}>
       <div class="admin-grid">

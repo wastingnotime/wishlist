@@ -1,8 +1,9 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { adminAuthMode, authorizationRedirect } from "../../lib/admin-auth";
+import { appPath } from "../../lib/paths";
 
 export async function GET(_event: APIEvent) {
-  if (adminAuthMode() !== "casdoor") return Response.redirect("/admin", 302);
+  if (adminAuthMode() !== "casdoor") return Response.redirect(appPath("/admin"), 302);
   try {
     const result = await authorizationRedirect();
     return new Response(null, { status: 302, headers: { location: result.location, "set-cookie": result.cookie, "cache-control": "no-store" } });

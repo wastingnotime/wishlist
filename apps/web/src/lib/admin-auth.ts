@@ -56,7 +56,8 @@ function cookies(request: Request): Record<string, string> {
 
 function cookie(name: string, value: string, maxAge: number): string {
   const secure = process.env.APP_ENV === "production" || process.env.WISHLIST_COOKIE_SECURE !== "false" ? "; Secure" : "";
-  return `${name}=${value}; Path=/; Max-Age=${maxAge}${secure}; SameSite=Lax; HttpOnly`;
+  const basePath = process.env.WISHLIST_BASE_PATH?.replace(/\/+$/, "") || "/";
+  return `${name}=${value}; Path=${basePath}; Max-Age=${maxAge}${secure}; SameSite=Lax; HttpOnly`;
 }
 
 async function discovery(): Promise<Discovery> {
