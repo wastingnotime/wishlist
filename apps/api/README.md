@@ -29,6 +29,17 @@ Production startup requires the platform SMTP contract: `WNT_EMAIL_SMTP_HOST`, `
 | POST | `/v1/suggestions` | Submit a private suggestion |
 | GET, POST, PATCH | `/v1/admin/apps`, `/v1/admin/features`, `/v1/admin/suggestions` | Admin app, feature, and moderation operations |
 
+### Visitor email OTP limits
+
+Any syntactically valid email address can request a sign-in code; Wishlist does
+not maintain a recipient allowlist. Delivery depends on the configured SMTP
+provider accepting and delivering to that address. Addresses are trimmed and
+normalized to lowercase.
+
+The API allows at most three OTP requests per email address per rolling hour.
+Each code expires after 10 minutes, and verification is limited to five
+attempts per code. After five incorrect attempts, request a new code.
+
 Writes through the browser BFF require a same-origin request. Admin routes require a bearer credential: the local development token in local mode, or a verified Casdoor token from an allowed subject in Casdoor mode. Public responses contain vote aggregates and never contain identity or pending suggestion data.
 
 Suggestions stay private until an admin accepts them. Admin-created and accepted features start in Voting; admins control lifecycle transitions. Existing votes remain attached when a feature changes status.
