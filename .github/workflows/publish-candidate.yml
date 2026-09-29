@@ -21,7 +21,7 @@ jobs:
     env:
       AWS_REGION: us-east-1
       REGISTRY: 590183855481.dkr.ecr.us-east-1.amazonaws.com
-      IMAGE_TAG: ${{ github.sha }}
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v7
       - name: Require infra-platform dispatch token
@@ -42,59 +42,27 @@ jobs:
       - name: Build and publish API candidate
         run: |
           set -euo pipefail
-          if describe_output="$(aws ecr describe-images \
-            --region "$AWS_REGION" \
-            --repository-name wishlist-api \
-            --image-ids "imageTag=$IMAGE_TAG" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text 2>&1)"; then
-            api_digest="$describe_output"
-          elif [[ "$describe_output" == *ImageNotFoundException* ]]; then
-            docker buildx build \
-              --platform linux/arm64 \
-              --file apps/api/Dockerfile \
-              --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
-              --build-arg VCS_REF="$IMAGE_TAG" \
-              --tag "$REGISTRY/wishlist-api:$IMAGE_TAG" \
-              --metadata-file /tmp/wishlist-api-image.json \
-              --push apps/api
-            api_digest="$(jq -r '.["containerimage.digest"]' /tmp/wishlist-api-image.json)"
-          else
-            echo "$describe_output" >&2
-            exit 1
-          fi
-          test -n "$api_digest" && test "$api_digest" != None
-          jq -n --arg digest "$api_digest" '{"containerimage.digest": $digest}' \
-            > /tmp/wishlist-api-image.json
+          docker buildx build \
+            --platform linux/arm64 \
+            --file apps/api/Dockerfile \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag "$REGISTRY/wishlist-api:$IMAGE_TAG" \
+            --metadata-file /tmp/wishlist-api-image.json \
+            --push apps/api
       - name: Build and publish web candidate
         run: |
           set -euo pipefail
-          if describe_output="$(aws ecr describe-images \
-            --region "$AWS_REGION" \
-            --repository-name wishlist-web \
-            --image-ids "imageTag=$IMAGE_TAG" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text 2>&1)"; then
-            web_digest="$describe_output"
-          elif [[ "$describe_output" == *ImageNotFoundException* ]]; then
-            docker buildx build \
-              --platform linux/arm64 \
-              --file apps/web/Dockerfile \
-              --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
-              --build-arg VCS_REF="$IMAGE_TAG" \
-              --tag "$REGISTRY/wishlist-web:$IMAGE_TAG" \
-              --metadata-file /tmp/wishlist-web-image.json \
-              --push apps/web
-            web_digest="$(jq -r '.["containerimage.digest"]' /tmp/wishlist-web-image.json)"
-          else
-            echo "$describe_output" >&2
-            exit 1
-          fi
-          test -n "$web_digest" && test "$web_digest" != None
-          jq -n --arg digest "$web_digest" '{"containerimage.digest": $digest}' \
-            > /tmp/wishlist-web-image.json
+          docker buildx build \
+            --platform linux/arm64 \
+            --file apps/web/Dockerfile \
+            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag "$REGISTRY/wishlist-web:$IMAGE_TAG" \
+            --metadata-file /tmp/wishlist-web-image.json \
+            --push apps/web
       - name: Write candidate handoff
         run: |
           api_digest="$(jq -r '.["containerimage.digest"]' /tmp/wishlist-api-image.json)"
