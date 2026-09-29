@@ -12,7 +12,7 @@ Install web dependencies once with `cd apps/web && npm install`. Docker is requi
 
 If you used the former SQLite app, stop the old local app and run `make import-sqlite` before restarting. It copies missing apps, features, identities, votes, and suggestions into PostgreSQL, including outstanding OTP/session records. You can rerun it to catch rows added before the switch; existing PostgreSQL rows are preserved. The source `apps/api/wishlist.db` is left untouched. Run `make test` for API and browser checks against a disposable PostgreSQL container.
 
-The public board supports Voting, Producing, and Delivered views with app filters. Visitors can vote and submit private suggestions after email OTP verification. Admins can manage apps and features, review suggestions, and control the feature lifecycle at `/admin`.
+The public board shows one app at a time, with visible app choices and Voting, Producing, and Delivered views. The selected app and view remain in the URL. Visitors can vote and submit private suggestions after email OTP verification. Admins can manage apps and features, review suggestions, and control the feature lifecycle at `/admin`.
 
 For local development, OTP codes are printed in the API terminal and `/admin` accepts the local token `local-development-admin-token`. This development adapter is not suitable for real users. Production startup is blocked until an email OTP provider is configured. See the app READMEs for setup and validation.
 

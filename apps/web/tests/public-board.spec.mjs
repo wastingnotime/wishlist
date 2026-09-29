@@ -16,13 +16,13 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }, testInfo) => {
   if (testInfo.status !== "passed") console.log("Browser diagnostics:", consoleErrors.get(page));
   const baseURL = String(testInfo.project.use.baseURL ?? "");
-  const outcomeFacts = testInfo.title.startsWith("public board filters")
-    ? { voting_view_loaded: true, app_filter: "cat-care", filtered_views: ["voting", "producing", "delivered"], url_state_survived_reload: true, delivery_link_visible: true }
+  const outcomeFacts = testInfo.title.startsWith("public board selects")
+    ? { voting_view_loaded: true, selected_apps: ["cat-care", "sliding-tasks"], filtered_views: ["voting", "producing", "delivered"], url_state_survived_reload: true, delivery_link_visible: true }
     : testInfo.title.startsWith("admin can")
       ? { admin_token_checked: true, app_created: true, feature_published: true }
       : testInfo.title.startsWith("visitor can")
         ? { otp_modal_completed: true, vote_toggled: true, private_suggestion_submitted: true }
-      : { empty_state_visible: true, app_filter: "cat-care-missing", unrelated_features_hidden: true };
+      : { empty_state_visible: true, app_filter: "empty-board-test-app", unrelated_features_hidden: true };
   results.push({
     browser: testInfo.project.use.browserName ?? "chromium",
     flow: testInfo.title,
@@ -47,13 +47,19 @@ test.afterAll(async () => {
   await writeFile(output, `${JSON.stringify({ browser: "chromium", results }, null, 2)}\n`);
 });
 
-test("public board filters app and lifecycle, preserves URL state, and refreshes", async ({ page }) => {
+test("public board selects an app and lifecycle, preserves URL state, and refreshes", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Community requests" })).toBeVisible();
+  await expect(page).toHaveURL(/view=voting.*app=cat-care/);
+  await expect(page.getByRole("heading", { name: "Cat Care" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Choose an app" }).getByRole("link", { name: "Cat Care" })).toHaveAttribute("aria-current", "page");
   await expect(page.locator('[data-feature-slug="family-sharing"]')).toContainText("0");
-  await expect(page.locator('[data-feature-slug="dark-mode"]')).toBeVisible();
+  await expect(page.locator('[data-feature-slug="dark-mode"]')).toHaveCount(0);
 
-  await page.getByLabel("Filter by app").selectOption("cat-care");
+  await page.getByRole("navigation", { name: "Choose an app" }).getByRole("link", { name: "Sliding Tasks" }).click();
+  await expect(page).toHaveURL(/app=sliding-tasks/);
+  await expect(page.getByRole("heading", { name: "Sliding Tasks" })).toBeVisible();
+  await expect(page.locator('[data-feature-slug="dark-mode"]')).toBeVisible();
+  await page.getByRole("navigation", { name: "Choose an app" }).getByRole("link", { name: "Cat Care" }).click();
   await expect(page).toHaveURL(/app=cat-care/);
   await expect(page.locator('[data-feature-slug="dark-mode"]')).toHaveCount(0);
   await page.getByRole("link", { name: "Producing" }).click();
@@ -71,7 +77,13 @@ test("public board filters app and lifecycle, preserves URL state, and refreshes
 });
 
 test("valid app without features shows an empty state", async ({ page }) => {
-  await page.goto("/?view=delivered&app=cat-care-missing");
+  await page.goto("/admin");
+  await page.getByLabel("Admin access token").fill("wishlist-e2e-admin");
+  await page.getByLabel("Name", { exact: true }).fill("Empty Board Test App");
+  await page.getByRole("button", { name: "Create app" }).click();
+  await expect(page.getByRole("status")).toContainText("App created");
+  await page.goto("/?view=delivered&app=empty-board-test-app");
+  await expect(page.getByRole("heading", { name: "Empty Board Test App" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Nothing here yet" })).toBeVisible();
   await expect(page.locator('[data-feature-slug="family-sharing-shipped"]')).toHaveCount(0);
 });

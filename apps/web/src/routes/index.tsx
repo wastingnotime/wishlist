@@ -1,5 +1,5 @@
 import { A, useLocation, useNavigate } from "@solidjs/router";
-import { For, Show, createMemo, createResource, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from "solid-js";
 import { ApiError, api } from "../lib/api";
 import { appPath } from "../lib/paths";
 
@@ -53,21 +53,29 @@ export default function PublicBoard() {
   const [notice, setNotice] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   onMount(() => { setReady(true);void api<{verified:boolean;vote_feature_ids:string[]}>("session").then(setSession).catch(()=>setSession(null)).finally(()=>setSessionLoaded(true)); });
-  const selection = createMemo(() => {
-    const query = new URLSearchParams(location.search);
-    return { view: safeView(query.get("view") ?? undefined), app: query.get("app") ?? "" };
-  });
   const [apps] = createResource(async () => {
     const result = await api<{ apps: AppChoice[] }>("apps");
     return result.apps;
   });
-  const [board, { refetch }] = createResource(selection, async ({ view, app }) => {
+  const selection = createMemo(() => {
+    const query = new URLSearchParams(location.search);
+    const requestedApp = query.get("app");
+    const availableApps = apps() ?? [];
+    return { view: safeView(query.get("view") ?? undefined), app: availableApps.find(app => app.slug === requestedApp)?.slug ?? availableApps[0]?.slug ?? "" };
+  });
+  const selectedApp = createMemo(() => apps()?.find(app => app.slug === selection().app));
+  createEffect(() => {
+    if (!ready() || !selectedApp()) return;
+    const query = new URLSearchParams(location.search);
+    if (query.get("app") !== selection().app || query.get("view") !== selection().view)
+      navigate(boardURL(selection().view, selection().app), { replace: true });
+  });
+  const [board, { refetch }] = createResource(() => apps()?.length ? selection() : undefined, async ({ view, app }) => {
     const query = new URLSearchParams({ view });
     if (app) query.set("app", app);
     return (await api<{ features: Feature[] }>(`features?${query.toString()}`)).features;
   });
 
-  const chooseApp = (slug: string) => { navigate(boardURL(selection().view, slug)); };
   const requireIdentity = (action: string) => { if (!session()?.verified) { setPendingVote(action); setAuthStep("email"); return false; } return true; };
   const toggleVote = async (feature: Feature) => {
     if (!requireIdentity(feature.id)) return;
@@ -92,7 +100,7 @@ export default function PublicBoard() {
       <aside class="side-label side-label-right" aria-hidden="true">ideas in motion</aside>
       <header class="topbar">
         <a class="brand" href={appPath("/")} aria-label="Wasting No Time Wishlist home"><span class="brand-mark">wl</span><span>wnt / wishlist</span></a>
-          <div class="header-actions"><span class="public-label"><span aria-hidden="true" class="online-dot" /> PUBLIC DEMAND BOARD</span><button class="suggest-button" disabled={!sessionLoaded()} onClick={()=>{setSuggestApp(apps()?.[0]?.id??"");setSuggestOpen(true);}}>Suggest an idea</button><A class="admin-nav-link" href="/admin">Admin</A><Show when={session()?.verified}><button class="signout-button" disabled={!sessionLoaded()} onClick={async()=>{await api("session",{method:"DELETE"});setSession(null);}}>Sign out</button></Show></div>
+          <div class="header-actions"><span class="public-label"><span aria-hidden="true" class="online-dot" /> PUBLIC DEMAND BOARD</span><button class="suggest-button" disabled={!sessionLoaded()} onClick={()=>{setSuggestApp(selectedApp()?.id??"");setSuggestOpen(true);}}>Suggest an idea</button><A class="admin-nav-link" href="/admin">Admin</A><Show when={session()?.verified}><button class="signout-button" disabled={!sessionLoaded()} onClick={async()=>{await api("session",{method:"DELETE"});setSession(null);}}>Sign out</button></Show></div>
       </header>
 
       <main>
@@ -111,17 +119,14 @@ export default function PublicBoard() {
 
         <section class="board" aria-label="Wishlist board">
           <div class="board-toolbar">
-            <label class="app-filter"><span>APP</span>
-              <select aria-label="Filter by app" disabled={!ready()} value={selection().app} onInput={(event) => chooseApp(event.currentTarget.value)}>
-                <option value="">All apps</option>
-                <For each={apps()}>{(app) => <option value={app.slug}>{app.name}</option>}</For>
-              </select>
-              <span class="select-chevron" aria-hidden="true">⌄</span>
-            </label>
+            <span class="app-selector-label">Browse an app</span>
             <button class="refresh-button" onClick={() => refetch()} disabled={board.loading} aria-label="Refresh wishlist">
               <span aria-hidden="true" classList={{ spinning: board.loading }}>↻</span><span>Refresh</span>
             </button>
           </div>
+          <nav class="app-choices" aria-label="Choose an app">
+            <For each={apps()}>{app => <A class="app-choice" classList={{ active: selection().app === app.slug }} href={boardURL(selection().view, app.slug)} aria-current={selection().app === app.slug ? "page" : undefined}>{app.name}</A>}</For>
+          </nav>
 
           <nav class="view-tabs" aria-label="Feature status">
             <For each={views}>{(view) => <A class="view-tab" classList={{ active: selection().view === view }} href={boardURL(view, selection().app)} aria-current={selection().view === view ? "page" : undefined}>
@@ -129,18 +134,18 @@ export default function PublicBoard() {
             </A>}</For>
           </nav>
 
-          <div class="board-heading"><div><p class="eyebrow">{viewLabel[selection().view]} board</p><h2>{selection().view === "voting" ? "Community requests" : selection().view === "producing" ? "In the workshop" : "Out in the world"}</h2></div>
+          <div class="board-heading"><div><p class="eyebrow">{viewLabel[selection().view]} board</p><h2>{selectedApp()?.name ?? "Wishlist"}</h2><p class="board-subtitle">{selection().view === "voting" ? "Community requests" : selection().view === "producing" ? "In the workshop" : "Out in the world"}</p></div>
             <span class="result-count">{board()?.length ?? 0} {board()?.length === 1 ? "feature" : "features"}</span>
           </div>
 
           <Show when={failure()}><div class="error-banner" role="alert"><span>{errorMessage()}</span><button onClick={() => { void refetch(); }} class="retry-button">Try again</button></div></Show>
           <Show when={!board.loading && !failure()}>
-            <Show when={(board()?.length ?? 0) > 0} fallback={<div class="empty-state"><span aria-hidden="true">◇</span><h3>Nothing here yet</h3><p>There are no features in this view for the selected app.</p></div>}>
+            <Show when={(board()?.length ?? 0) > 0} fallback={<div class="empty-state"><span aria-hidden="true">◇</span><h3>Nothing here yet</h3><p>{selectedApp() ? "There are no features in this view for the selected app." : "There are no apps available yet."}</p></div>}>
               <div class="feature-list" aria-live="polite">
                 <For each={board()}>{(feature, index) => <article class="feature-card" data-feature-slug={feature.slug}>
                   <div class="rank-number">{String(index() + 1).padStart(2, "0")}</div>
                   <div class="vote-count" aria-label={`${feature.vote_count} votes`}><span aria-hidden="true">▲</span><strong>{feature.vote_count}</strong><small>VOTES</small></div>
-                  <div class="feature-copy"><div class="feature-meta"><span class={`status-pill ${feature.status}`}><i aria-hidden="true" />{viewLabel[feature.status]}</span><span class="app-name">{feature.app_name}</span></div>
+                  <div class="feature-copy"><div class="feature-meta"><span class={`status-pill ${feature.status}`}><i aria-hidden="true" />{viewLabel[feature.status]}</span></div>
                     <h3>{feature.title}</h3><p>{feature.description}</p>
                     <Show when={feature.status === "delivered" && feature.delivered_at}><time class="delivered-date" dateTime={feature.delivered_at!}>Shipped {dateLabel(feature.delivered_at)}</time></Show>
                   </div>
