@@ -51,7 +51,7 @@ These checks validate local artifacts only. They do not publish images or establ
 
 ## Required runtime settings
 
-The API needs `APP_ENV=production`, `WISHLIST_DATABASE_URL`, `WISHLIST_OTP_SECRET`, Casdoor discovery URL, issuer and audience, allowed Casdoor subject IDs, `WNT_EMAIL_SMTP_HOST`, `WNT_EMAIL_SMTP_PORT`, `WNT_EMAIL_SMTP_USERNAME`, `WNT_EMAIL_SMTP_PASSWORD_FILE`, and `WNT_EMAIL_FROM`. `WNT_EMAIL_REPLY_TO` is optional. The web service needs `APP_ENV=production`, an internal `WISHLIST_API_URL`, Casdoor discovery URL, issuer, client ID and secret, redirect URI, audience, and a base64 encoded 32-byte `WISHLIST_SESSION_KEY`. Production OIDC endpoints and the public callback must use HTTPS.
+The API needs `APP_ENV=production`, `WISHLIST_DATABASE_URL`, `WISHLIST_OTP_SECRET`, Casdoor discovery URL, issuer and audience, allowed Casdoor subject IDs, `WNT_EMAIL_SMTP_HOST`, `WNT_EMAIL_SMTP_PORT`, `WNT_EMAIL_SMTP_USERNAME`, `WNT_EMAIL_SMTP_PASSWORD_FILE`, and `WNT_EMAIL_FROM`. `WNT_EMAIL_REPLY_TO` is optional. The web service needs `APP_ENV=production`, an internal `WISHLIST_API_URL`, Casdoor discovery URL, issuer, client ID and secret, redirect URI, audience, and a base64 encoded 32-byte `WISHLIST_SESSION_KEY`. `WISHLIST_PUBLIC_ORIGIN` may explicitly set the trusted browser origin; otherwise production derives it from the redirect URI. Production OIDC endpoints and the public callback must use HTTPS.
 
 Keep all credentials in the deployment secret store. The local PostgreSQL password, demo admin token, and OTP logger are development-only.
 

@@ -7,7 +7,7 @@
     "build": "vinxi build",
     "start": "vinxi start",
     "typecheck": "tsc --noEmit",
-    "test:auth": "node --test src/lib/admin-auth.test.ts",
+    "test:auth": "node --test src/lib/admin-auth.test.ts src/lib/request-origin.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
