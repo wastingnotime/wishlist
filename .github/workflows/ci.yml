@@ -71,9 +71,6 @@ jobs:
           WNT_WEB_E2E_BROWSER: chromium
           WNT_WEB_E2E_TRACE: retain-on-failure
         run: make integration
-      - name: Show candidate logs
-        if: failure()
-        run: docker compose -f sandboxes/integration/compose.yaml logs --no-color
       - name: Upload candidate integration evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -154,11 +151,21 @@ jobs:
 
           These are candidate images. Production promotion remains owned by infra-platform and requires a reviewed digest-bearing stack change.
           EOF
+          jq -n \
+            --arg source_revision "$GITHUB_SHA" \
+            --arg validation_run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg evidence_artifact "wishlist-candidate-integration-${GITHUB_SHA}" \
+            --arg api_reference "${REGISTRY}/wishlist-api@${api_digest}" \
+            --arg web_reference "${REGISTRY}/wishlist-web@${web_digest}" \
+            '{status: "candidate_published", source_revision: $source_revision, validation: {run_url: $validation_run, evidence_artifact: $evidence_artifact, status: "passed"}, promotion_authority: "infra-platform", images: {api: {reference: $api_reference}, web: {reference: $web_reference}}}' \
+            > wishlist-promotion-handoff.json
           cat wishlist-candidate-handoff.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:
           name: wishlist-candidate-handoff-${{ github.sha }}
-          path: wishlist-candidate-handoff.md
+          path: |
+            wishlist-candidate-handoff.md
+            wishlist-promotion-handoff.json
           if-no-files-found: error
           retention-days: 90
       - name: Dispatch candidate run to infra-platform

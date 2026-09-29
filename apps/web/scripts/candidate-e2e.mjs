@@ -13,6 +13,15 @@ const artifactDir = resolve(process.env.WNT_WEB_E2E_ARTIFACT_DIR ?? "sandboxes/i
 const output = resolve(process.env.WNT_WEB_E2E_OUTPUT ?? `${artifactDir}/browser-e2e.json`);
 await mkdir(artifactDir, { recursive: true });
 await mkdir(dirname(output), { recursive: true });
+if (phase === "publish") {
+  const plan = {
+    source_revision: process.env.GIT_SHA ?? "local",
+    base_url: baseURL,
+    semantic_slices: ["admin app and feature publication", "public board selection and reload", "durable feature storage"],
+    phases: ["publish", "persistence after API restart"],
+  };
+  await writeFile(resolve(artifactDir, "validation-plan.json"), `${JSON.stringify(plan, null, 2)}\n`);
+}
 
 const chromiumPath = process.env.WNT_WEB_E2E_CHROMIUM_PATH ?? "/usr/bin/chromium";
 const browser = await chromium.launch(existsSync(chromiumPath) ? { executablePath: chromiumPath } : {});
@@ -81,6 +90,7 @@ try {
       scenario: { browser_e2e: prior },
     };
     await writeFile(resolve(artifactDir, "validation-result.json"), `${JSON.stringify(validation, null, 2)}\n`);
+    await writeFile(resolve(artifactDir, "result.json"), `${JSON.stringify({ status: validation.status, source_revision: validation.source_revision, browser_e2e: output }, null, 2)}\n`);
     await writeFile(resolve(artifactDir, "evidence.md"), `# Wishlist candidate validation\n\nStatus: ${validation.status}\n\nThe built API and web images were exercised through Chromium at ${baseURL}. The browser created an app, published a feature, reloaded the public board, and checked the feature after an API restart. See browser-e2e.json and validation-result.json for details.\n`);
   }
   await browser.close();

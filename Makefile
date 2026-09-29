@@ -65,13 +65,21 @@ test:
 integration:
 	@set -eu; \
 	compose_file="$$(pwd)/sandboxes/integration/compose.yaml"; \
-	cleanup() { docker compose -f "$$compose_file" down --volumes; }; \
+	artifact_dir="$${WNT_WEB_E2E_ARTIFACT_DIR:-$$(pwd)/sandboxes/integration/artifacts}"; \
+	cleanup() { \
+		status=$$?; \
+		if [ "$$status" -ne 0 ]; then \
+			mkdir -p "$$artifact_dir"; \
+			docker compose -f "$$compose_file" logs --no-color > "$$artifact_dir/candidate-logs.txt" 2>&1 || true; \
+		fi; \
+		docker compose -f "$$compose_file" down --volumes; \
+	}; \
 	trap cleanup EXIT; \
 	export GIT_SHA="$$(git rev-parse HEAD)"; \
 	export BUILD_DATE="$$(git show -s --format=%cI HEAD)"; \
 	export WNT_WEB_E2E_BASE_URL="$${WNT_WEB_E2E_BASE_URL:-http://127.0.0.1:18083/wishlist}"; \
 	export WNT_WEB_E2E_OUTPUT="$${WNT_WEB_E2E_OUTPUT:-$$(pwd)/sandboxes/integration/artifacts/browser-e2e.json}"; \
-	export WNT_WEB_E2E_ARTIFACT_DIR="$${WNT_WEB_E2E_ARTIFACT_DIR:-$$(pwd)/sandboxes/integration/artifacts}"; \
+	export WNT_WEB_E2E_ARTIFACT_DIR="$$artifact_dir"; \
 	docker compose -f "$$compose_file" build; \
 	docker compose -f "$$compose_file" up -d --wait; \
 	node apps/web/scripts/candidate-e2e.mjs publish; \
