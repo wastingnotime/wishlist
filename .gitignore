@@ -7,5 +7,6 @@ node_modules/
 dist/
 test-results/
 playwright-report/
+sandboxes/integration/artifacts/
 *.db
 *.db-*

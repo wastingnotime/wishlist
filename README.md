@@ -18,4 +18,4 @@ For local development, OTP codes are printed in the API terminal and `/admin` ac
 
 Production admin sign-in uses Casdoor OIDC with an explicit subject allowlist. See the [API setup](apps/api/README.md) and [web setup](apps/web/README.md) for the required settings. The local admin token does not authorize production admin routes.
 
-Production preparation and remaining release gates are tracked in [the production readiness record](work/changes/wishlist-production-readiness/production_readiness.md). Build local runtime images with `make build-images`.
+Production preparation and remaining release gates are tracked in [the production readiness record](work/changes/wishlist-production-readiness/production_readiness.md). Build local runtime images with `make build-images`, or use `make integration` to validate the built API and web images together at `/wishlist`. CI runs source checks and built-image integration on pull requests, then publishes candidate images from `main` only after both pass. Infra-platform owns the promotion decision.

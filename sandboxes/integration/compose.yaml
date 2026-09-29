@@ -1,0 +1,50 @@
+name: wishlist-candidate
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: wishlist_candidate
+      POSTGRES_USER: wishlist_candidate
+      POSTGRES_PASSWORD: integration-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wishlist_candidate -d wishlist_candidate"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  api:
+    image: wishlist-api:integration
+    build:
+      context: ../../apps/api
+      args:
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        VCS_REF: ${GIT_SHA:-local}
+    environment:
+      WISHLIST_API_ADDR: :8080
+      WISHLIST_DATABASE_URL: postgres://wishlist_candidate:integration-only@postgres:5432/wishlist_candidate?sslmode=disable
+      WISHLIST_ADMIN_TOKEN: wishlist-candidate-admin
+      WISHLIST_OTP_SECRET: candidate-only-otp-secret
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: wishlist-web:integration
+    build:
+      context: ../../apps/web
+      args:
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        VCS_REF: ${GIT_SHA:-local}
+        WISHLIST_BASE_PATH: /wishlist
+    environment:
+      WISHLIST_API_URL: http://api:8080
+    ports:
+      - "127.0.0.1:${WISHLIST_CANDIDATE_WEB_PORT:-18083}:3000"
+    depends_on:
+      api:
+        condition: service_healthy

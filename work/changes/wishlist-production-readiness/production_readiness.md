@@ -22,6 +22,7 @@ Status: preparation in progress; production release is not yet eligible.
 - [x] Follow-up web typecheck and admin auth tests passed after adding the production API URL guard test.
 - [x] Production SMTP adapter configuration and message tests passed with `make test`; the four Playwright browser flows passed.
 - [x] API and web production images built locally with `make build-images IMAGE_TAG=otp-review`.
+- [x] `make integration` validates the built API and web images at `/wishlist` with a real browser and verifies that a published feature survives API restart (2026-09-29).
 - [x] [Wishlist PR #2](https://github.com/wastingnotime/wishlist/pull/2) merged with the production SMTP adapter and manual candidate publishing workflow.
 - [x] Infra-platform applied immutable Wishlist ECR repositories and the dedicated main-branch publisher role (2026-09-28).
 - [x] The first candidate push exposed the missing `ecr:BatchGetImage` action. Infra-platform PR #664 added the repository-scoped permission, and the updated policy is now applied.
@@ -44,7 +45,7 @@ These checks validate local artifacts only. They do not publish images or establ
 
 - [x] Complete the Wishlist candidate publish permission fix through [infra-platform issue #662](https://github.com/wastingnotime/infra-platform/issues/662) and [infra-platform PR #664](https://github.com/wastingnotime/infra-platform/pull/664).
 - [ ] Add the Wishlist application stack, production runtime settings, and reviewed promotion path in infra-platform.
-- [ ] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.
+- [x] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.
 - [ ] Agree with infra-platform on production service names, public route, ports, PostgreSQL placement/credentials, replicas, resources, and rollout/rollback expectations.
 - [ ] Run candidate validation and preserve its validation result, promotion handoff, release notes, image digest, and build provenance.
 - [ ] Obtain infra-platform's reviewed production promotion decision and observe the deployed digest before recording a production release.

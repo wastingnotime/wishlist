@@ -1,19 +1,92 @@
-name: Publish Wishlist candidate images
+name: CI
 
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: wishlist-candidate-publish
-  cancel-in-progress: false
-
 jobs:
-  publish:
-    if: github.ref == 'refs/heads/main'
+  quality:
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Run PostgreSQL, API, and browser checks
+        env:
+          WNT_WEB_E2E_OUTPUT: ${{ runner.temp }}/wishlist-browser-e2e.json
+          WNT_WEB_E2E_ARTIFACT_DIR: ${{ runner.temp }}/wishlist-browser-artifacts
+          WNT_WEB_E2E_TRACE: retain-on-failure
+        run: make test
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wishlist-browser-e2e-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/wishlist-browser-e2e.json
+            ${{ runner.temp }}/wishlist-browser-artifacts/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  candidate-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install browser dependencies
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Validate built API and web images
+        env:
+          WNT_WEB_E2E_BASE_URL: http://127.0.0.1:18083/wishlist
+          WNT_WEB_E2E_OUTPUT: ${{ github.workspace }}/sandboxes/integration/artifacts/browser-e2e.json
+          WNT_WEB_E2E_ARTIFACT_DIR: ${{ github.workspace }}/sandboxes/integration/artifacts
+          WNT_WEB_E2E_BROWSER: chromium
+          WNT_WEB_E2E_TRACE: retain-on-failure
+        run: make integration
+      - name: Show candidate logs
+        if: failure()
+        run: docker compose -f sandboxes/integration/compose.yaml logs --no-color
+      - name: Upload candidate integration evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wishlist-candidate-integration-${{ github.sha }}
+          path: sandboxes/integration/artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  publish-candidate-images:
+    needs: [quality, candidate-integration]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     permissions:
       contents: read
@@ -45,7 +118,7 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             --file apps/api/Dockerfile \
-            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg BUILD_DATE="$(git show -s --format=%cI "$GITHUB_SHA")" \
             --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
             --build-arg VCS_REF="$GITHUB_SHA" \
             --tag "$REGISTRY/wishlist-api:$IMAGE_TAG" \
@@ -57,7 +130,7 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             --file apps/web/Dockerfile \
-            --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --build-arg BUILD_DATE="$(git show -s --format=%cI "$GITHUB_SHA")" \
             --build-arg IMAGE_SOURCE="https://github.com/${GITHUB_REPOSITORY}" \
             --build-arg VCS_REF="$GITHUB_SHA" \
             --tag "$REGISTRY/wishlist-web:$IMAGE_TAG" \

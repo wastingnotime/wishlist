@@ -5,5 +5,5 @@ import { appBasePath } from "./lib/paths";
 import "./app.css";
 
 export default function App() {
-  return <Router base={appBasePath} root={(props) => <Suspense>{props.children as any}</Suspense>}><FileRoutes /></Router>;
+  return <Router base={typeof window === "undefined" ? "" : appBasePath} root={(props) => <Suspense>{props.children as any}</Suspense>}><FileRoutes /></Router>;
 }
