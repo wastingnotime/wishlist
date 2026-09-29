@@ -1,5 +1,6 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { adminAuthMode, sessionAccessToken, wishlistAPIBaseURL } from "../../lib/admin-auth";
+import { isSameOriginWrite } from "../../lib/request-origin";
 
 const routes = new Map<string, Set<string>>([
   ["apps", new Set(["GET"])],
@@ -24,7 +25,7 @@ async function proxy(event: APIEvent) {
   if (!methods.has(event.request.method)) return Response.json({ error: { code: "method_not_allowed" } }, { status: 405 });
 
   const incoming = new URL(event.request.url);
-  if (event.request.method !== "GET" && event.request.headers.get("origin") !== incoming.origin) {
+  if (event.request.method !== "GET" && !isSameOriginWrite(event.request)) {
     return Response.json({ error: { code: "forbidden" } }, { status: 403 });
   }
   try {
