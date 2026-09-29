@@ -1,4 +1,4 @@
-import { A, useLocation } from "@solidjs/router";
+import { A, useLocation, useNavigate } from "@solidjs/router";
 import { For, Show, createMemo, createResource, createSignal, onMount } from "solid-js";
 import { ApiError, api } from "../lib/api";
 import { appPath } from "../lib/paths";
@@ -28,7 +28,7 @@ function safeView(raw: string | undefined): View {
 function boardURL(view: View, app: string) {
   const query = new URLSearchParams({ view });
   if (app) query.set("app", app);
-  return `${appPath("/")}?${query.toString()}`;
+  return `/?${query.toString()}`;
 }
 
 function dateLabel(value: string | null) {
@@ -38,6 +38,7 @@ function dateLabel(value: string | null) {
 
 export default function PublicBoard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [session, setSession] = createSignal<{verified:boolean; vote_feature_ids:string[]}|null>(null);
   const [ready,setReady]=createSignal(false);
   const [sessionLoaded,setSessionLoaded]=createSignal(false);
@@ -66,7 +67,7 @@ export default function PublicBoard() {
     return (await api<{ features: Feature[] }>(`features?${query.toString()}`)).features;
   });
 
-  const chooseApp = (slug: string) => { window.location.assign(boardURL(selection().view, slug)); };
+  const chooseApp = (slug: string) => { navigate(boardURL(selection().view, slug)); };
   const requireIdentity = (action: string) => { if (!session()?.verified) { setPendingVote(action); setAuthStep("email"); return false; } return true; };
   const toggleVote = async (feature: Feature) => {
     if (!requireIdentity(feature.id)) return;
