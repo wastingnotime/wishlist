@@ -25,6 +25,7 @@ Status: preparation in progress; production release is not yet eligible.
 - [x] [Wishlist PR #2](https://github.com/wastingnotime/wishlist/pull/2) merged with the production SMTP adapter and manual candidate publishing workflow.
 - [x] Infra-platform applied immutable Wishlist ECR repositories and the dedicated main-branch publisher role (2026-09-28).
 - [x] The first candidate push exposed the missing `ecr:BatchGetImage` action. Infra-platform PR #664 added the repository-scoped permission, and the updated policy is now applied.
+- [ ] Configure the Wishlist `INFRA_PLATFORM_PROMOTION_TOKEN` repository secret with Actions write access to infra-platform; candidate publication now dispatches its run ID to the infra-owned promotion intake.
 - [ ] Retry candidate publication after the native build optimization is reviewed and merged; preserve its digest handoff for infra-platform promotion.
 - [ ] Candidate run 36469623944 attempt 2 published the API image but the arm64-emulated web build ran for over 15 minutes; that attempt was cancelled. Wishlist PR #3 moves both build stages to the native platform.
 
