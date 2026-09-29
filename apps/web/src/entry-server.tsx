@@ -1,5 +1,7 @@
 import { createHandler, StartServer } from "@solidjs/start/server";
 
+const basePath = import.meta.env.SERVER_BASE_URL.replace(/\/+$/, "");
+
 export default createHandler(() => (
     <StartServer document={({ assets, children, scripts }) => (
       <html lang="en">
@@ -14,4 +16,12 @@ export default createHandler(() => (
         <body><div id="app">{children}</div>{scripts}</body>
       </html>
     )} />
-  ));
+  ), {}, async (event) => {
+    if (!basePath) return;
+
+    const requestURL = new URL(event.request.url);
+    if (requestURL.pathname !== basePath && !requestURL.pathname.startsWith(`${basePath}/`)) return;
+
+    requestURL.pathname = requestURL.pathname.slice(basePath.length) || "/";
+    event.request = new Request(requestURL, event.request);
+  });
