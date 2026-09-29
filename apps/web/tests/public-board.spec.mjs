@@ -80,16 +80,14 @@ test("admin can create an app and publish a voting feature", async ({ page }) =>
   await page.goto("/admin");
   await page.getByLabel("Admin access token").fill("wishlist-e2e-admin");
   await expect(page.getByRole("combobox", { name: "App" })).toContainText("Cat Care");
-  await page.getByLabel("Slug", { exact: true }).fill("demo-app");
-  await page.getByLabel("Name", { exact: true }).fill("Demo App");
+  await page.getByLabel("Name", { exact: true }).fill("Démo App!");
   await page.getByLabel("Description", { exact: true }).first().fill("A browser test app.");
   await page.getByRole("button", { name: "Create app" }).click();
   await expect(page.getByRole("status")).toContainText("App created");
-  await expect(page.getByRole("combobox", { name: "App" })).toContainText("Demo App");
+  await expect(page.getByRole("combobox", { name: "App" })).toContainText("Démo App!");
 
-  await page.getByRole("combobox", { name: "App" }).selectOption({ label: "Demo App" });
-  await page.getByLabel("Feature slug").fill("first-request");
-  await page.getByLabel("Title", { exact: true }).fill("First request");
+  await page.getByRole("combobox", { name: "App" }).selectOption({ label: "Démo App!" });
+  await page.getByLabel("Title", { exact: true }).fill("First request!");
   await page.getByLabel("Description", { exact: true }).last().fill("A feature created by the admin test.");
   await page.getByRole("button", { name: "Publish to Voting" }).click();
   await expect(page.getByRole("status")).toContainText("Feature published to Voting");

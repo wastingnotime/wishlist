@@ -1,6 +1,7 @@
 import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { api } from "../lib/api";
 import { appPath } from "../lib/paths";
+import { slugFromLabel } from "../lib/slug";
 
 type App = { id: string; slug: string; name: string; description: string; url: string; active: boolean };
 type Suggestion = { id: string; app_id: string; title: string; description: string; created_at: string };
@@ -29,24 +30,27 @@ export default function Admin() {
     const groups = await Promise.all(((["voting", "producing", "delivered"] as const).map(async view => (await api<{ features: Feature[] }>(`features?view=${view}`)).features)));
     return groups.flat();
   });
-  const run = async (action: () => Promise<unknown>, message: string) => {
-    try { await action(); setNotice(message); setRefresh(value => value + 1); }
-    catch { setNotice(adminSession().mode === "casdoor" ? "The action failed. Check your admin access and entered values." : "The action failed. Check the admin token and entered values."); }
+  const run = async (action: () => Promise<unknown>, message: string): Promise<boolean> => {
+    try { await action(); setNotice(message); setRefresh(value => value + 1); return true; }
+    catch { setNotice(adminSession().mode === "casdoor" ? "The action failed. Check your admin access and entered values." : "The action failed. Check the admin token and entered values."); return false; }
   };
   const createApp = async (event: SubmitEvent) => {
     event.preventDefault(); const htmlForm=event.currentTarget as HTMLFormElement;const form = new FormData(htmlForm);
-    await run(() => api("admin/apps", { method: "POST", headers: auth(), body: JSON.stringify({ slug: form.get("slug"), name: form.get("name"), description: form.get("description"), url: form.get("url") }) }), "App created.");
-    htmlForm.reset();
+    const name = String(form.get("name") ?? ""); const slug = slugFromLabel(name);
+    if (!slug) { setNotice("Enter an app name with letters or numbers to create its slug."); return; }
+    if (await run(() => api("admin/apps", { method: "POST", headers: auth(), body: JSON.stringify({ slug, name, description: form.get("description"), url: form.get("url") }) }), "App created.")) htmlForm.reset();
   };
   const createFeature = async (event: SubmitEvent) => {
     event.preventDefault(); const htmlForm=event.currentTarget as HTMLFormElement;const form = new FormData(htmlForm);
-    await run(() => api("admin/features", { method: "POST", headers: auth(), body: JSON.stringify({ app_id: form.get("app_id"), slug: form.get("slug"), title: form.get("title"), description: form.get("description") }) }), "Feature published to Voting.");
-    htmlForm.reset();
+    const title = String(form.get("title") ?? ""); const slug = slugFromLabel(title);
+    if (!slug) { setNotice("Enter a feature title with letters or numbers to create its slug."); return; }
+    if (await run(() => api("admin/features", { method: "POST", headers: auth(), body: JSON.stringify({ app_id: form.get("app_id"), slug, title, description: form.get("description") }) }), "Feature published to Voting.")) htmlForm.reset();
   };
   const acceptSuggestion = async (suggestion: Suggestion, edit: boolean) => {
     const title=edit?window.prompt("Feature title",suggestion.title):suggestion.title;if(!title)return;
     const description=edit?window.prompt("Description",suggestion.description):suggestion.description;if(description===null)return;
-    const slug=title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,80);
+    const slug=slugFromLabel(title);
+    if (!slug) { setNotice("Enter a feature title with letters or numbers to create its slug."); return; }
     await run(() => api(`admin/suggestions/${suggestion.id}/accept`, { method: "POST", headers: auth(), body: JSON.stringify({ slug, title, description }) }), "Suggestion published to Voting.");
   };
   const rejectSuggestion=async(suggestion:Suggestion)=>run(()=>api(`admin/suggestions/${suggestion.id}/reject`,{method:"POST",headers:auth(),body:"{}"}),"Suggestion rejected.");
@@ -82,11 +86,11 @@ export default function Admin() {
     <Show when={accessKey()} fallback={<Show when={adminSession().mode === "token"}><p class="admin-intro">Enter the admin token to manage apps, features, and suggestions.</p></Show>}>
       <div class="admin-grid">
         <section class="admin-panel"><h2>Apps</h2>
-          <form onSubmit={createApp}><label>Slug<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" /></label><label>Name<input name="name" required maxlength="100" /></label><label>Description<input name="description" maxlength="500" /></label><label>URL<input name="url" type="url" /></label><button>Create app</button></form>
+          <form onSubmit={createApp}><label>Name<input name="name" required maxlength="100" /></label><label>Description<input name="description" maxlength="500" /></label><label>URL<input name="url" type="url" /></label><button>Create app</button></form>
           <h3>Existing apps</h3><ul><For each={apps()}>{app => <li><span>{app.name}<code>{app.slug}</code></span><span class="admin-inline-actions"><button onClick={() => void editApp(app)}>Edit</button><button class="admin-secondary" onClick={() => void toggleApp(app)}>{app.active ? "Deactivate" : "Reactivate"}</button></span></li>}</For></ul>
         </section>
         <section class="admin-panel"><h2>Publish a feature</h2>
-          <form onSubmit={createFeature}><label>App<select name="app_id" required><For each={apps()?.filter(app => app.active)}>{app => <option value={app.id}>{app.name}</option>}</For></select></label><label>Feature slug<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" /></label><label>Title<input name="title" required maxlength="160" /></label><label>Description<textarea name="description" maxlength="2000" rows="3" /></label><button>Publish to Voting</button></form>
+          <form onSubmit={createFeature}><label>App<select name="app_id" required><For each={apps()?.filter(app => app.active)}>{app => <option value={app.id}>{app.name}</option>}</For></select></label><label>Title<input name="title" required maxlength="160" /></label><label>Description<textarea name="description" maxlength="2000" rows="3" /></label><button>Publish to Voting</button></form>
         </section>
       </div>
       <section class="admin-panel admin-wide"><h2>Pending suggestions <span>{suggestions()?.length ?? 0}</span></h2>
