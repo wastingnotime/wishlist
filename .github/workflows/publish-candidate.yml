@@ -24,6 +24,10 @@ jobs:
       IMAGE_TAG: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v7
+      - name: Require infra-platform dispatch token
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_PLATFORM_PROMOTION_TOKEN }}
+        run: test -n "$GH_TOKEN" || { echo 'INFRA_PLATFORM_PROMOTION_TOKEN is required' >&2; exit 1; }
       - uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
           aws-region: ${{ env.AWS_REGION }}
@@ -82,3 +86,13 @@ jobs:
           path: wishlist-candidate-handoff.md
           if-no-files-found: error
           retention-days: 90
+      - name: Dispatch candidate run to infra-platform
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_PLATFORM_PROMOTION_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api \
+            --method POST \
+            repos/wastingnotime/infra-platform/actions/workflows/wishlist-image-promotion.yml/dispatches \
+            -f ref=main \
+            -f "inputs[run_id]=$GITHUB_RUN_ID"
