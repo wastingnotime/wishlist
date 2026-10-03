@@ -5,9 +5,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release_notes_url:
+        description: Wishlist release notes pull request or release URL (optional when run from a merged PR)
+        required: false
+        type: string
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   quality:
@@ -133,7 +139,26 @@ jobs:
             --tag "$REGISTRY/wishlist-web:$IMAGE_TAG" \
             --metadata-file /tmp/wishlist-web-image.json \
             --push apps/web
+      - name: Resolve release notes reference
+        id: release-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_URL: ${{ inputs.release_notes_url }}
+        run: |
+          set -euo pipefail
+          url="$INPUT_URL"
+          if [[ -z "$url" ]]; then
+            url="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+              --jq '[.[] | select(.state == "closed" and .merged_at != null)] | sort_by(.merged_at) | last | .html_url // empty')"
+          fi
+          [[ "$url" =~ ^https://github\.com/wastingnotime/wishlist/(pull/[1-9][0-9]*|releases/tag/[A-Za-z0-9._-]+)$ ]] || {
+            echo 'Provide a Wishlist pull request or release URL as release_notes_url' >&2
+            exit 1
+          }
+          echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Write candidate handoff
+        env:
+          RELEASE_NOTES_URL: ${{ steps.release-notes.outputs.url }}
         run: |
           api_digest="$(jq -r '.["containerimage.digest"]' /tmp/wishlist-api-image.json)"
           web_digest="$(jq -r '.["containerimage.digest"]' /tmp/wishlist-web-image.json)"
@@ -145,6 +170,7 @@ jobs:
           - Source revision: \`${GITHUB_SHA}\`
           - Source repository: \`${GITHUB_REPOSITORY}\`
           - Candidate workflow: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - Release notes: ${RELEASE_NOTES_URL}
           - API image: \`${REGISTRY}/wishlist-api@${api_digest}\`
           - Web image: \`${REGISTRY}/wishlist-web@${web_digest}\`
           - Target architecture: \`linux/arm64\`
@@ -154,10 +180,11 @@ jobs:
           jq -n \
             --arg source_revision "$GITHUB_SHA" \
             --arg validation_run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg release_notes_url "$RELEASE_NOTES_URL" \
             --arg evidence_artifact "wishlist-candidate-integration-${GITHUB_SHA}" \
             --arg api_reference "${REGISTRY}/wishlist-api@${api_digest}" \
             --arg web_reference "${REGISTRY}/wishlist-web@${web_digest}" \
-            '{status: "candidate_published", source_revision: $source_revision, validation: {run_url: $validation_run, evidence_artifact: $evidence_artifact, status: "passed"}, promotion_authority: "infra-platform", images: {api: {reference: $api_reference}, web: {reference: $web_reference}}}' \
+            '{status: "candidate_published", source_revision: $source_revision, release_notes_url: $release_notes_url, validation: {run_url: $validation_run, evidence_artifact: $evidence_artifact, status: "passed"}, promotion_authority: "infra-platform", images: {api: {reference: $api_reference}, web: {reference: $web_reference}}}' \
             > wishlist-promotion-handoff.json
           cat wishlist-candidate-handoff.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
