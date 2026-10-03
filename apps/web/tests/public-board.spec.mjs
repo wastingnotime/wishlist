@@ -136,3 +136,18 @@ test("visitor can verify, vote, and submit a private suggestion", async ({ page 
   await expect(page.getByRole("status")).toContainText("private");
   expect(suggestionSubmitted).toBe(true);
 });
+
+test("admin sign-in performs a full document redirect", async ({ page }) => {
+  await page.addInitScript(() => {
+    const key = "wishlist-document-loads";
+    sessionStorage.setItem(key, String(Number(sessionStorage.getItem(key) ?? "0") + 1));
+  });
+  await page.route("**/auth/admin-session", route => route.fulfill({ json: { mode: "casdoor", authorized: false } }));
+  await page.route("**/auth/login", route => route.fulfill({ status: 302, headers: { location: "/admin" } }));
+  const documentLoads = async () => page.evaluate(() => Number(sessionStorage.getItem("wishlist-document-loads")));
+  await page.goto("/admin");
+  const beforeSignIn = await documentLoads();
+  await page.getByRole("link", { name: /sign in with casdoor/i }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect.poll(documentLoads).toBeGreaterThan(beforeSignIn);
+});
