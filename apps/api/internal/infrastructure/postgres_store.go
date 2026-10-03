@@ -250,7 +250,7 @@ func (s *PostgresStore) CompleteOTP(ctx context.Context, email, challengeID stri
 	if e != nil || id != challengeID || !now.Before(validUntil) || attempts >= 5 {
 		return "", domain.ErrInvalidCode
 	}
-	if _, e = tx.ExecContext(ctx, `INSERT INTO identities VALUES($1,$2,$3) ON CONFLICT (email) DO NOTHING`, identityID, email, now.UTC()); e != nil {
+	if _, e = tx.ExecContext(ctx, `INSERT INTO identities(id,email,created_at,last_verified_at) VALUES($1,$2,$3,$3) ON CONFLICT (email) DO UPDATE SET last_verified_at=$3`, identityID, email, now.UTC()); e != nil {
 		return "", e
 	}
 	if e = tx.QueryRowContext(ctx, `SELECT id FROM identities WHERE email=$1`, email).Scan(&identityID); e != nil {
@@ -304,6 +304,11 @@ func (s *PostgresStore) ToggleVote(ctx context.Context, identity, feature string
 		return false, 0, e
 	}
 	defer tx.Rollback()
+	// Retention cleanup locks identities first, so voting takes the same lock order.
+	var lockedID string
+	if e = tx.QueryRowContext(ctx, `SELECT id FROM identities WHERE id=$1 FOR UPDATE`, identity).Scan(&lockedID); e != nil {
+		return false, 0, e
+	}
 	var status string
 	e = tx.QueryRowContext(ctx, `SELECT status FROM features WHERE id=$1 FOR UPDATE`, feature).Scan(&status)
 	if errors.Is(e, sql.ErrNoRows) {
@@ -342,6 +347,10 @@ func (s *PostgresStore) CreateSuggestion(ctx context.Context, id, app, identity,
 		return "", e
 	}
 	defer tx.Rollback()
+	var lockedID string
+	if e = tx.QueryRowContext(ctx, `SELECT id FROM identities WHERE id=$1 FOR UPDATE`, identity).Scan(&lockedID); e != nil {
+		return "", e
+	}
 	if _, e = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 1))`, identity); e != nil {
 		return "", e
 	}

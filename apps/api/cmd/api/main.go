@@ -38,6 +38,14 @@ func main() {
 		log.Fatal(err)
 	}
 	defer store.Close()
+	retentionCtx, retentionCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	retentionCounts, err := store.RunRetention(retentionCtx, time.Now().UTC())
+	retentionCancel()
+	if err != nil {
+		log.Fatalf("initial visitor retention cleanup failed: %v", err)
+	}
+	log.Printf("visitor retention cleanup: %+v", retentionCounts)
+	go runRetentionLoop(store)
 	casdoorAdmin := production || os.Getenv("WISHLIST_ADMIN_AUTH_MODE") == "casdoor"
 	var adminOIDC *httpapi.AdminOIDC
 	if casdoorAdmin {
@@ -83,6 +91,21 @@ func main() {
 	server := &http.Server{Addr: addr, Handler: apiServer.Handler()}
 	log.Printf("Wishlist API listening on http://%s", addr)
 	log.Fatal(server.ListenAndServe())
+}
+
+func runRetentionLoop(store *infrastructure.PostgresStore) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for now := range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		counts, err := store.RunRetention(ctx, now.UTC())
+		cancel()
+		if err != nil {
+			log.Printf("visitor retention cleanup failed: %v", err)
+			continue
+		}
+		log.Printf("visitor retention cleanup: %+v", counts)
+	}
 }
 
 func startupSeed(production bool) (domain.Board, error) {
