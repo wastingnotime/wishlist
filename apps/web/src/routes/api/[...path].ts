@@ -9,6 +9,13 @@ const routes = new Map<string, Set<string>>([
   ["otp", new Set(["POST"])],
   ["otp/verify", new Set(["POST"])],
   ["suggestions", new Set(["POST"])],
+  ["privacy/data", new Set(["GET", "DELETE"])],
+  ["privacy/email/request", new Set(["POST"])],
+  ["privacy/email/verify", new Set(["POST"])],
+  ["admin/privacy/reviews", new Set(["GET"])],
+  ["admin/privacy/data", new Set(["POST"])],
+  ["admin/privacy/erase", new Set(["POST"])],
+  ["admin/privacy/correct-email", new Set(["POST"])],
   ["admin/suggestions", new Set(["GET"])],
   ["admin/apps", new Set(["GET", "POST"])],
   ["admin/features", new Set(["POST"])],
@@ -20,7 +27,7 @@ async function proxy(event: APIEvent) {
   const methods = routes.get(path)
     ?? (/^features\/[^/]+\/vote$/.test(path) ? new Set(["POST"])
     : /^admin\/apps\/[^/]+$/.test(path) || /^admin\/features\/[^/]+$/.test(path) ? new Set(["PATCH"])
-    : /^admin\/suggestions\/[^/]+\/(accept|reject|merge)$/.test(path) ? new Set(["POST"]) : undefined);
+    : /^admin\/suggestions\/[^/]+\/(accept|reject|merge)$/.test(path) || /^admin\/privacy\/reviews\/[^/]+\/resolve$/.test(path) ? new Set(["POST"]) : undefined);
   if (!methods) return Response.json({ error: { code: "not_found" } }, { status: 404 });
   if (!methods.has(event.request.method)) return Response.json({ error: { code: "method_not_allowed" } }, { status: 405 });
 

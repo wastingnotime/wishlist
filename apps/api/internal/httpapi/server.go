@@ -38,6 +38,11 @@ type AdminStore interface {
 	UpdateFeature(context.Context, string, string, string, domain.Status, string, time.Time) error
 	PendingSuggestions(context.Context) ([]map[string]any, error)
 	ReviewSuggestion(context.Context, string, string, string, string, string, string, time.Time) error
+	PendingPrivacyReviews(context.Context) ([]application.PublicPrivacyReview, error)
+	ResolvePrivacyReview(context.Context, string, time.Time) error
+	OperatorPrivacyData(context.Context, string, time.Time) (application.PrivacyData, error)
+	OperatorErasePrivacyData(context.Context, string, time.Time) error
+	OperatorCorrectEmail(context.Context, string, string) error
 }
 
 func New(board *application.Board, visitor *application.Visitor, secureCookies bool, admin ...AdminStore) *Server {
@@ -68,6 +73,10 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/session", server.logout)
 	mux.HandleFunc("POST /v1/features/{id}/vote", server.toggleVote)
 	mux.HandleFunc("POST /v1/suggestions", server.submitSuggestion)
+	mux.HandleFunc("GET /v1/privacy/data", server.privacyData)
+	mux.HandleFunc("DELETE /v1/privacy/data", server.erasePrivacyData)
+	mux.HandleFunc("POST /v1/privacy/email/request", server.requestEmailCorrection)
+	mux.HandleFunc("POST /v1/privacy/email/verify", server.completeEmailCorrection)
 	mux.HandleFunc("POST /v1/admin/apps", server.adminCreateApp)
 	mux.HandleFunc("GET /v1/admin/session", server.adminSession)
 	mux.HandleFunc("GET /v1/admin/apps", server.adminListApps)
@@ -78,6 +87,11 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/admin/suggestions/{id}/accept", server.adminAcceptSuggestion)
 	mux.HandleFunc("POST /v1/admin/suggestions/{id}/reject", server.adminRejectSuggestion)
 	mux.HandleFunc("POST /v1/admin/suggestions/{id}/merge", server.adminMergeSuggestion)
+	mux.HandleFunc("GET /v1/admin/privacy/reviews", server.adminPrivacyReviews)
+	mux.HandleFunc("POST /v1/admin/privacy/reviews/{id}/resolve", server.adminResolvePrivacyReview)
+	mux.HandleFunc("POST /v1/admin/privacy/data", server.adminPrivacyData)
+	mux.HandleFunc("POST /v1/admin/privacy/erase", server.adminErasePrivacyData)
+	mux.HandleFunc("POST /v1/admin/privacy/correct-email", server.adminCorrectEmail)
 	return mux
 }
 
@@ -259,6 +273,95 @@ func (server *Server) submitSuggestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"submitted": true, "suggestion_id": id})
+}
+
+func visitorSessionCookie(r *http.Request) string {
+	cookie, err := r.Cookie(visitorCookie)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func writePrivacyError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, domain.ErrUnauthenticated):
+		writeError(w, http.StatusUnauthorized, "unauthenticated")
+	case errors.Is(err, domain.ErrFreshVerification):
+		writeError(w, http.StatusForbidden, "fresh_verification_required")
+	case errors.Is(err, domain.ErrEmailInUse):
+		writeError(w, http.StatusConflict, "email_in_use")
+	case errors.Is(err, domain.ErrInvalidCode):
+		writeError(w, http.StatusBadRequest, "invalid_or_expired_code")
+	case errors.Is(err, domain.ErrInvalidRequest):
+		writeError(w, http.StatusBadRequest, "invalid_request")
+	default:
+		writeError(w, http.StatusInternalServerError, "internal_error")
+	}
+}
+
+func (server *Server) privacyData(w http.ResponseWriter, r *http.Request) {
+	data, err := server.visitor.PrivacyData(r.Context(), visitorSessionCookie(r))
+	if err != nil {
+		writePrivacyError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (server *Server) requestEmailCorrection(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	var command struct {
+		NewEmail string `json:"new_email"`
+	}
+	if !decode(w, r, &command) {
+		return
+	}
+	err := server.visitor.RequestEmailCorrection(r.Context(), visitorSessionCookie(r), command.NewEmail)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidRequest) || errors.Is(err, domain.ErrUnauthenticated) || errors.Is(err, domain.ErrFreshVerification) {
+			writePrivacyError(w, err)
+		} else {
+			writeError(w, http.StatusServiceUnavailable, "otp_unavailable")
+		}
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]bool{"requested": true})
+}
+
+func (server *Server) completeEmailCorrection(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	var command struct {
+		NewEmail string `json:"new_email"`
+		Code     string `json:"code"`
+	}
+	if !decode(w, r, &command) {
+		return
+	}
+	if err := server.visitor.CompleteEmailCorrection(r.Context(), visitorSessionCookie(r), command.NewEmail, command.Code); err != nil {
+		writePrivacyError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"corrected": true})
+}
+
+func (server *Server) erasePrivacyData(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if err := server.visitor.ErasePrivacyData(r.Context(), visitorSessionCookie(r)); err != nil {
+		writePrivacyError(w, err)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: visitorCookie, Value: "", Path: "/", HttpOnly: true, Secure: server.secureCookies, SameSite: http.SameSiteLaxMode, MaxAge: -1, Expires: time.Unix(1, 0)})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func sameOrigin(r *http.Request) bool { return r.Header.Get("X-Wishlist-Same-Origin") == "1" }
@@ -457,6 +560,137 @@ func (server *Server) adminSuggestions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"suggestions": rows})
+}
+func (server *Server) adminPrivacyReviews(w http.ResponseWriter, r *http.Request) {
+	if !server.authorizeAdmin(w, r) {
+		return
+	}
+	rows, err := server.admin.PendingPrivacyReviews(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reviews": rows})
+}
+func (server *Server) adminPrivacyData(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if !server.authorizeAdmin(w, r) {
+		return
+	}
+	var command struct {
+		Email         string `json:"email"`
+		CaseReference string `json:"case_reference"`
+	}
+	if !decode(w, r, &command) {
+		return
+	}
+	email, ok := privacyOperatorInput(command.Email, command.CaseReference)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	data, err := server.admin.OperatorPrivacyData(r.Context(), email, time.Now().UTC())
+	if err != nil {
+		writeOperatorPrivacyError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+func (server *Server) adminErasePrivacyData(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if !server.authorizeAdmin(w, r) {
+		return
+	}
+	var command struct {
+		Email         string `json:"email"`
+		CaseReference string `json:"case_reference"`
+	}
+	if !decode(w, r, &command) {
+		return
+	}
+	email, ok := privacyOperatorInput(command.Email, command.CaseReference)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := server.admin.OperatorErasePrivacyData(r.Context(), email, time.Now().UTC()); err != nil {
+		writeOperatorPrivacyError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+func (server *Server) adminCorrectEmail(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if !server.authorizeAdmin(w, r) {
+		return
+	}
+	var command struct {
+		Email         string `json:"email"`
+		NewEmail      string `json:"new_email"`
+		CaseReference string `json:"case_reference"`
+	}
+	if !decode(w, r, &command) {
+		return
+	}
+	email, ok := privacyOperatorInput(command.Email, command.CaseReference)
+	newEmail := strings.ToLower(strings.TrimSpace(command.NewEmail))
+	if !ok || len(newEmail) > 254 || !emailPatternForOperator(newEmail) || newEmail == email {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := server.admin.OperatorCorrectEmail(r.Context(), email, newEmail); err != nil {
+		if errors.Is(err, domain.ErrEmailInUse) {
+			writeError(w, http.StatusConflict, "email_in_use")
+		} else {
+			writeOperatorPrivacyError(w, err)
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+func privacyOperatorInput(email, caseReference string) (string, bool) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	caseReference = strings.TrimSpace(caseReference)
+	return email, len(email) <= 254 && emailPatternForOperator(email) && len(caseReference) >= 3 && len(caseReference) <= 120
+}
+func emailPatternForOperator(email string) bool {
+	parts := strings.Split(email, "@")
+	return len(parts) == 2 && parts[0] != "" && strings.Contains(parts[1], ".") && !strings.ContainsAny(email, " \t\r\n")
+}
+func writeOperatorPrivacyError(w http.ResponseWriter, err error) {
+	if errors.Is(err, domain.ErrInvalidRequest) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "internal_error")
+}
+func (server *Server) adminResolvePrivacyReview(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if !server.authorizeAdmin(w, r) {
+		return
+	}
+	err := server.admin.ResolvePrivacyReview(r.Context(), r.PathValue("id"), time.Now().UTC())
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidRequest) {
+			writeError(w, http.StatusNotFound, "not_found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 func (server *Server) adminAcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 	server.reviewSuggestion(w, r, "accept")

@@ -27,6 +27,10 @@ Production startup requires the platform SMTP contract: `WNT_EMAIL_SMTP_HOST`, `
 | GET, DELETE | `/v1/session` | Read or end the HttpOnly visitor session |
 | POST | `/v1/features/{id}/vote` | Add or remove the visitor's vote |
 | POST | `/v1/suggestions` | Submit a private suggestion |
+| GET, DELETE | `/v1/privacy/data` | Recently verified visitor: retrieve linked records or erase live data |
+| POST | `/v1/privacy/email/request`, `/v1/privacy/email/verify` | Recently verified visitor: verify a new email and correct the identity |
+| POST | `/v1/admin/privacy/data`, `/v1/admin/privacy/correct-email`, `/v1/admin/privacy/erase` | Authorized operator: retrieve, correct, or erase by email with a private case reference |
+| GET, POST | `/v1/admin/privacy/reviews`, `/v1/admin/privacy/reviews/{id}/resolve` | Review published feature text after source erasure |
 | GET, POST, PATCH | `/v1/admin/apps`, `/v1/admin/features`, `/v1/admin/suggestions` | Admin app, feature, and moderation operations |
 
 ### Visitor email OTP limits
@@ -52,8 +56,8 @@ An identity with no retained vote or suggestion is removed 90 days after its
 30-day session validity ends. These periods are product-selected and still need
 privacy review before they are published as a user-facing retention promise.
 The cleanup writes only aggregate row counts to the API log. It does not cover
-provider records, runtime logs, backups, legacy SQLite copies, or verified
-privacy requests; see the [retention record](../../work/changes/wishlist-privacy-lgpd-baseline/retention-and-deletion.md).
+provider records, runtime logs, backups, or legacy SQLite copies. Visitor rights
+requests use a separate recent-OTP workflow; see the [rights record](../../work/changes/wishlist-privacy-lgpd-baseline/rights-requests.md) and [retention record](../../work/changes/wishlist-privacy-lgpd-baseline/retention-and-deletion.md).
 
 Writes through the browser BFF require a same-origin request. Admin routes require a bearer credential: the local development token in local mode, or a verified Casdoor token from an allowed subject in Casdoor mode. Public responses contain vote aggregates and never contain identity or pending suggestion data.
 

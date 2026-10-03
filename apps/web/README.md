@@ -1,6 +1,6 @@
 # Wishlist web
 
-SolidStart browser app with a same-origin BFF. The public board supports app filters, feature lifecycle views, vote actions, email OTP verification, and private suggestion submission. The `/admin` page supports app management, feature publishing and lifecycle, and pending suggestion review.
+SolidStart browser app with a same-origin BFF. The public board supports app filters, feature lifecycle views, vote actions, email OTP verification, and private suggestion submission. The `/privacy` page lets a recently verified visitor see linked records, correct the email, or erase live records. The `/admin` page supports app management, feature publishing and lifecycle, suggestion review, and verified privacy request handling.
 
 ## Run locally
 
