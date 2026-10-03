@@ -43,9 +43,18 @@ def main():
             values = dict(zip(columns, row))
             if table == "apps":
                 values["active"] = bool(values["active"])
+            if table == "identities":
+                values["last_verified_at"] = values["created_at"]
             names = ",".join(values)
             data = ",".join(literal(value) for value in values.values())
             sql.append(f"INSERT INTO {table} ({names}) VALUES ({data}) ON CONFLICT DO NOTHING;")
+    # A session is issued at verification and expires 30 days later. Preserve
+    # that newer verification when importing an established SQLite identity.
+    sql.append("""UPDATE identities i SET last_verified_at = GREATEST(
+        i.last_verified_at,
+        COALESCE((SELECT MAX(s.expires_at - INTERVAL '30 days')
+                  FROM sessions s WHERE s.identity_id = i.id), i.last_verified_at)
+    );""")
     sql.append("COMMIT;")
     command = ["docker", "compose", "exec", "-T", "postgres", "psql", "-q", "-U", "wishlist", "-d", "wishlist"]
     result = subprocess.run(command, input="\n".join(sql) + "\n", text=True, capture_output=True)

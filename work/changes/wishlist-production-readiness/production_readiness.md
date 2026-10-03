@@ -43,6 +43,8 @@ These checks validate local artifacts only. They do not publish images or establ
 
 ## Release blockers and external inputs
 
+- [ ] Review and promote the visitor-retention API change, then verify the hourly cleanup and 12-month vote expiry behavior in the deployed runtime. Local PostgreSQL tests pass; the new migration and worker are not deployed yet. Track the remaining privacy gate in [WNT-87](https://linear.app/wastingnotime/issue/WNT-87/wishlist-enforce-retention-and-cleanup-of-visitor-data).
+- [ ] Establish and test a Wishlist PostgreSQL backup/restore baseline before public voting; [WNT-102](https://linear.app/wastingnotime/issue/WNT-102/wishlist-establish-and-test-postgresql-backup-and-restore-before) tracks infra-platform implementation, retention, an isolated restore drill, and deletion reconciliation after restore.
 - [x] Complete the Wishlist candidate publish permission fix through [infra-platform issue #662](https://github.com/wastingnotime/infra-platform/issues/662) and [infra-platform PR #664](https://github.com/wastingnotime/infra-platform/pull/664).
 - [ ] Add the Wishlist application stack, production runtime settings, and reviewed promotion path in infra-platform.
 - [x] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.

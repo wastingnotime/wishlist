@@ -40,6 +40,21 @@ The API allows at most three OTP requests per email address per rolling hour.
 Each code expires after 10 minutes, and verification is limited to five
 attempts per code. After five incorrect attempts, request a new code.
 
+### Visitor retention
+
+On startup and every hour, the API removes expired OTP challenges and visitor
+sessions, OTP request history within 24 hours of creation (after its one-hour
+throttle use), private suggestions pending
+for more than 180 days, and reviewed private suggestions one year after review.
+Votes expire one year after the identity's last successful email verification;
+the public vote count then decreases without changing the feature lifecycle.
+An identity with no retained vote or suggestion is removed 90 days after its
+30-day session validity ends. These periods are product-selected and still need
+privacy review before they are published as a user-facing retention promise.
+The cleanup writes only aggregate row counts to the API log. It does not cover
+provider records, runtime logs, backups, legacy SQLite copies, or verified
+privacy requests; see the [retention record](../../work/changes/wishlist-privacy-lgpd-baseline/retention-and-deletion.md).
+
 Writes through the browser BFF require a same-origin request. Admin routes require a bearer credential: the local development token in local mode, or a verified Casdoor token from an allowed subject in Casdoor mode. Public responses contain vote aggregates and never contain identity or pending suggestion data.
 
 Suggestions stay private until an admin accepts them. Admin-created and accepted features start in Voting; admins control lifecycle transitions. Existing votes remain attached when a feature changes status.
