@@ -9,6 +9,7 @@ if (!(["publish", "persistence"].includes(phase))) throw new Error("Expected pub
 if ((process.env.WNT_WEB_E2E_BROWSER ?? "chromium") !== "chromium") throw new Error("Candidate validation currently supports Chromium");
 
 const baseURL = (process.env.WNT_WEB_E2E_BASE_URL ?? "http://127.0.0.1:18083/wishlist").replace(/\/$/, "");
+const basePath = new URL(baseURL).pathname.replace(/\/$/, "");
 const artifactDir = resolve(process.env.WNT_WEB_E2E_ARTIFACT_DIR ?? "sandboxes/integration/artifacts");
 const output = resolve(process.env.WNT_WEB_E2E_OUTPUT ?? `${artifactDir}/browser-e2e.json`);
 await mkdir(artifactDir, { recursive: true });
@@ -17,7 +18,7 @@ if (phase === "publish") {
   const plan = {
     source_revision: process.env.GIT_SHA ?? "local",
     base_url: baseURL,
-    semantic_slices: ["admin app and feature publication", "public board selection and reload", "durable feature storage"],
+    semantic_slices: ["admin app and feature publication", "public board selection and reload", "production base-path navigation", "durable feature storage"],
     phases: ["publish", "persistence after API restart"],
   };
   await writeFile(resolve(artifactDir, "validation-plan.json"), `${JSON.stringify(plan, null, 2)}\n`);
@@ -37,6 +38,7 @@ let status = "passed";
 let errorMessage = "";
 let screenshotPath;
 let tracePath;
+let basePathNavigationValidated = false;
 try {
   if (phase === "publish") {
     await page.goto(`${baseURL}/admin`);
@@ -50,6 +52,29 @@ try {
     await page.getByRole("status").filter({ hasText: "Feature published to Voting." }).waitFor();
   }
 
+  await page.goto(`${baseURL}/?view=voting&app=candidate-ci-app`);
+  const internalHrefs = await page.locator('a[href^="/"]').evaluateAll(anchors => anchors.map(anchor => anchor.getAttribute("href")));
+  const escapedHrefs = internalHrefs.filter(href => {
+    const pathname = new URL(href, baseURL).pathname;
+    return pathname !== basePath && !pathname.startsWith(`${basePath}/`);
+  });
+  assert.deepEqual(escapedHrefs, [], `Internal links escaped base path ${basePath}: ${escapedHrefs.join(", ")}`);
+  await page.getByRole("link", { name: "Your data" }).click();
+  await page.waitForURL(url => new URL(url).pathname === `${basePath}/privacy`);
+  assert.equal(new URL(page.url()).pathname, `${basePath}/privacy`);
+  await page.getByRole("heading", { name: "Verify your email" }).waitFor();
+  assert.deepEqual(consoleErrors, ["Failed to load resource: the server responded with a status of 401 (Unauthorized)"]);
+  consoleErrors.length = 0;
+  await page.getByRole("link", { name: "Back to board" }).click();
+  await page.waitForURL(url => new URL(url).pathname.replace(/\/$/, "") === basePath);
+  assert.equal(new URL(page.url()).pathname.replace(/\/$/, ""), basePath);
+  await page.getByRole("link", { name: "Admin", exact: true }).click();
+  await page.waitForURL(url => new URL(url).pathname === `${basePath}/admin`);
+  assert.equal(new URL(page.url()).pathname, `${basePath}/admin`);
+  await page.getByRole("link", { name: "Public Wishlist" }).click();
+  await page.waitForURL(url => new URL(url).pathname.replace(/\/$/, "") === basePath);
+  assert.equal(new URL(page.url()).pathname.replace(/\/$/, ""), basePath);
+  basePathNavigationValidated = true;
   await page.goto(`${baseURL}/?view=voting&app=candidate-ci-app`);
   await page.getByRole("heading", { name: "Candidate CI App" }).waitFor();
   await page.locator('[data-feature-slug="candidate-feature"]').waitFor();
@@ -75,7 +100,7 @@ try {
     phase,
     status,
     final_page_url: page.url(),
-    outcome_facts: { app_slug: "candidate-ci-app", feature_slug: "candidate-feature", visible_after_reload: status === "passed", durable_after_restart: phase === "persistence" && status === "passed" },
+    outcome_facts: { app_slug: "candidate-ci-app", feature_slug: "candidate-feature", visible_after_reload: status === "passed", base_path_navigation: basePathNavigationValidated, durable_after_restart: phase === "persistence" && status === "passed" },
     console_errors: consoleErrors,
     ...(errorMessage ? { error: errorMessage } : {}),
     ...(screenshotPath ? { screenshot_path: screenshotPath } : {}),
@@ -86,7 +111,7 @@ try {
     const validation = {
       status: prior.results.every(result => result.status === "passed") && phase === "persistence" ? "passed" : "failed",
       source_revision: process.env.GIT_SHA ?? "local",
-      semantic_slices: ["admin app and feature publication", "public board selection and reload", "durable feature storage"],
+      semantic_slices: ["admin app and feature publication", "public board selection and reload", "production base-path navigation", "durable feature storage"],
       scenario: { browser_e2e: prior },
     };
     await writeFile(resolve(artifactDir, "validation-result.json"), `${JSON.stringify(validation, null, 2)}\n`);
