@@ -10,6 +10,8 @@ import (
 var (
 	ErrInvalidRequest    = errors.New("invalid request")
 	ErrUnauthenticated   = errors.New("verified session required")
+	ErrFreshVerification = errors.New("recent email verification required")
+	ErrEmailInUse        = errors.New("email already belongs to another identity")
 	ErrInvalidCode       = errors.New("invalid or expired code")
 	ErrFeatureNotFound   = errors.New("feature not found")
 	ErrFeatureNotVoting  = errors.New("feature is not accepting votes")

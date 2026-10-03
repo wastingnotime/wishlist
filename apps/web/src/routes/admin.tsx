@@ -5,6 +5,8 @@ import { slugFromLabel } from "../lib/slug";
 
 type App = { id: string; slug: string; name: string; description: string; url: string; active: boolean };
 type Suggestion = { id: string; app_id: string; title: string; description: string; created_at: string };
+type PrivacyReview = { feature_id: string; app_name: string; title: string; description: string; status: "voting" | "producing" | "delivered"; delivery_url: string; requested_at: string };
+type VisitorPrivacyData = { email: string; created_at: string; last_verified_at: string; active_sessions: number; votes: { feature_id: string; app_name: string; title: string }[]; suggestions: { id: string; app_name: string; title: string; description: string; status: string }[] };
 type Feature = { id: string; title: string; description: string; app_slug: string; app_name: string; delivery_url: string | null; status: "voting" | "producing" | "delivered"; vote_count: number };
 type Status = Feature["status"];
 
@@ -13,6 +15,9 @@ export default function Admin() {
   const [notice, setNotice] = createSignal("");
   const [refresh, setRefresh] = createSignal(0);
   const [ready, setReady] = createSignal(false);
+  const [rightsEmail, setRightsEmail] = createSignal("");
+  const [rightsCase, setRightsCase] = createSignal("");
+  const [rightsData, setRightsData] = createSignal<VisitorPrivacyData | null>(null);
   const [adminSession, setAdminSession] = createSignal<{ mode: "loading" | "token" | "casdoor"; authorized: boolean }>({ mode: "loading", authorized: false });
   onMount(() => {
     setReady(true);
@@ -25,6 +30,7 @@ export default function Admin() {
   const accessKey = () => adminSession().mode === "casdoor" ? (adminSession().authorized ? "casdoor" : "") : (adminSession().mode === "token" ? token() : "");
   const [apps] = createResource(() => [refresh(), accessKey()] as const, async ([, key]) => key ? (await api<{ apps: App[] }>("admin/apps", { headers: auth() })).apps : []);
   const [suggestions] = createResource(() => [refresh(), accessKey()] as const, async ([, key]) => key ? (await api<{ suggestions: Suggestion[] }>("admin/suggestions", { headers: auth() })).suggestions : []);
+  const [privacyReviews] = createResource(() => [refresh(), accessKey()] as const, async ([, key]) => key ? (await api<{ reviews: PrivacyReview[] }>("admin/privacy/reviews", { headers: auth() })).reviews : []);
   const [features] = createResource(() => [refresh(), accessKey()] as const, async ([, key]) => {
     if (!key) return [];
     const groups = await Promise.all(((["voting", "producing", "delivered"] as const).map(async view => (await api<{ features: Feature[] }>(`features?view=${view}`)).features)));
@@ -74,6 +80,41 @@ export default function Admin() {
     if (status === "delivered") { url = window.prompt("Delivery URL (https://…)") ?? ""; }
     await run(() => api(`admin/features/${feature.id}`, { method: "PATCH", headers: auth(), body: JSON.stringify({ title: feature.title, description: feature.description, status, delivery_url: url }) }), `Feature moved to ${status}.`);
   };
+  const reviewPublicText = async (review: PrivacyReview) => {
+    const title = window.prompt("Check for personal details in this public feature title", review.title);
+    if (title === null || !title.trim()) return;
+    const description = window.prompt("Check for personal details in this public feature description", review.description);
+    if (description === null) return;
+    await run(async () => {
+      await api(`admin/features/${review.feature_id}`, { method: "PATCH", headers: auth(), body: JSON.stringify({ title: title.trim(), description: description.trim(), status: review.status, delivery_url: review.delivery_url }) });
+      await api(`admin/privacy/reviews/${review.feature_id}/resolve`, { method: "POST", headers: auth(), body: "{}" });
+    }, "Public feature text reviewed.");
+  };
+  const readRightsData = async (event: SubmitEvent) => {
+    event.preventDefault(); setRightsData(null);
+    try {
+      const data = await api<VisitorPrivacyData>("admin/privacy/data", { method: "POST", headers: auth(), body: JSON.stringify({ email: rightsEmail(), case_reference: rightsCase() }) });
+      setRightsData(data); setNotice("Visitor records loaded for the verified case. Handle them privately.");
+    } catch { setNotice("Could not load that visitor record. Check admin access, the address, and the case reference."); }
+  };
+  const eraseRightsData = async () => {
+    const record = rightsData(); if (!record) return;
+    if (!window.confirm(`Erase all live Wishlist records for ${record.email}? Confirm the requester's identity and exception decision in case ${rightsCase()} first.`)) return;
+    try {
+      await api("admin/privacy/erase", { method: "POST", headers: auth(), body: JSON.stringify({ email: record.email, case_reference: rightsCase() }) });
+      setRightsData(null); setRightsEmail(""); setRightsCase(""); setRefresh(value => value + 1);
+      setNotice("Live visitor records erased. Record the outcome in the private case and review queued public text.");
+    } catch { setNotice("Erasure failed. Check the case and visitor address before trying again."); }
+  };
+  const correctRightsEmail = async () => {
+    const record = rightsData(); if (!record) return;
+    const newEmail = window.prompt(`New verified email for ${record.email}`)?.trim(); if (!newEmail) return;
+    if (!window.confirm(`Move the Wishlist identity from ${record.email} to ${newEmail} and revoke all sessions? Confirm both addresses and the decision in case ${rightsCase()} first.`)) return;
+    try {
+      await api("admin/privacy/correct-email", { method: "POST", headers: auth(), body: JSON.stringify({ email: record.email, new_email: newEmail, case_reference: rightsCase() }) });
+      setRightsData(null); setRightsEmail(newEmail); setNotice("Email corrected and sessions revoked. Record the outcome in the private case.");
+    } catch { setNotice("Correction failed. Check both addresses, the case, and whether the new address is already registered."); }
+  };
 
   return <main class="admin-shell">
     <header class="admin-head"><a href={appPath("/")}>← Public Wishlist</a><span>WNT / ADMIN</span></header>
@@ -95,6 +136,15 @@ export default function Admin() {
       </div>
       <section class="admin-panel admin-wide"><h2>Pending suggestions <span>{suggestions()?.length ?? 0}</span></h2>
         <Show when={(suggestions()?.length ?? 0) > 0} fallback={<p>No pending suggestions.</p>}><For each={suggestions()}>{suggestion => <article class="admin-suggestion"><small>{apps()?.find(app => app.id === suggestion.app_id)?.name ?? "WNT app"} · {new Date(suggestion.created_at).toLocaleDateString()}</small><h3>{suggestion.title}</h3><p>{suggestion.description || "No description provided."}</p><div><button onClick={() => void acceptSuggestion(suggestion,false)}>Accept and publish</button><button class="admin-secondary" onClick={() => void acceptSuggestion(suggestion,true)}>Edit and publish</button><button class="admin-secondary" onClick={() => void mergeSuggestion(suggestion)}>Merge into feature</button><button class="admin-secondary" onClick={() => void rejectSuggestion(suggestion)}>Reject</button></div></article>}</For></Show>
+      </section>
+      <section class="admin-panel admin-wide"><h2>Public text to review after erasure <span>{privacyReviews()?.length ?? 0}</span></h2>
+        <p>Inspect these published features for personal details supplied in a deleted suggestion. Edit the text before marking the review complete.</p>
+        <Show when={(privacyReviews()?.length ?? 0) > 0} fallback={<p>No public text reviews are pending.</p>}><For each={privacyReviews()}>{review => <article class="admin-suggestion"><small>{review.app_name} · requested {new Date(review.requested_at).toLocaleDateString()}</small><h3>{review.title}</h3><p>{review.description || "No description provided."}</p><button onClick={() => void reviewPublicText(review)}>Review public text</button></article>}</For></Show>
+      </section>
+      <section class="admin-panel admin-wide"><h2>Privacy request operator</h2>
+        <p>Use only after verifying the requester and opening a private rights case. Record the verification, decision, response, and any exception in that case. Access and erasure here apply to the live Wishlist database.</p>
+        <form onSubmit={readRightsData}><label>Visitor email<input type="email" required value={rightsEmail()} onInput={event => { setRightsEmail(event.currentTarget.value); setRightsData(null); }} /></label><label>Private case reference<input required minlength="3" maxlength="120" value={rightsCase()} onInput={event => { setRightsCase(event.currentTarget.value); setRightsData(null); }} /></label><button>Retrieve linked records</button></form>
+        <Show when={rightsData()}>{record => <div class="admin-suggestion"><h3>{record().email}</h3><p>{record().active_sessions} active sessions · {record().votes.length} votes · {record().suggestions.length} private suggestions</p><ul><For each={record().votes}>{vote => <li>Vote: {vote.app_name} · {vote.title}</li>}</For><For each={record().suggestions}>{suggestion => <li>Suggestion: {suggestion.app_name} · {suggestion.title} · {suggestion.status}<p>{suggestion.description}</p></li>}</For></ul><button class="admin-secondary" onClick={() => void correctRightsEmail()}>Correct email</button><button class="admin-secondary" onClick={() => void eraseRightsData()}>Erase live visitor records</button></div>}</Show>
       </section>
       <section class="admin-panel admin-wide"><h2>Feature lifecycle</h2><div class="admin-feature-list"><For each={features()}>{feature => <article><div><strong>{feature.title}</strong><small>{feature.app_name} · {feature.vote_count} votes · {feature.status}</small></div><div class="lifecycle-actions"><button class="admin-secondary" onClick={() => void editFeature(feature)}>Edit</button><Show when={feature.status === "voting"}><button onClick={() => void changeStatus(feature, "producing")}>Move to Producing</button></Show><Show when={feature.status === "producing"}><button onClick={() => void changeStatus(feature, "delivered")}>Mark Delivered</button></Show><Show when={feature.status === "delivered"}><span>Delivered</span></Show></div></article>}</For></div></section>
     </Show>
