@@ -151,10 +151,19 @@ jobs:
             url="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
               --jq '[.[] | select(.state == "closed" and .merged_at != null)] | sort_by(.merged_at) | last | .html_url // empty')"
           fi
-          [[ "$url" =~ ^https://github\.com/wastingnotime/wishlist/(pull/[1-9][0-9]*|releases/tag/[A-Za-z0-9._-]+)$ ]] || {
+          if [[ "$url" =~ ^https://github\.com/wastingnotime/wishlist/pull/[1-9][0-9]*$ ]]; then
+            :
+          elif [[ "$url" == https://github.com/wastingnotime/wishlist/releases/tag/* ]]; then
+            tag="${url#https://github.com/wastingnotime/wishlist/releases/tag/}"
+            decoded_tag="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.argv[1]))' "$tag")"
+            git check-ref-format "refs/tags/$decoded_tag" || {
+              echo 'Release tag in release_notes_url is not a valid Git tag' >&2
+              exit 1
+            }
+          else
             echo 'Provide a Wishlist pull request or release URL as release_notes_url' >&2
             exit 1
-          }
+          fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Write candidate handoff
         env:
