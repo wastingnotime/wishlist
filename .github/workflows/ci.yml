@@ -155,8 +155,11 @@ jobs:
             :
           elif [[ "$url" == https://github.com/wastingnotime/wishlist/releases/tag/* ]]; then
             tag="${url#https://github.com/wastingnotime/wishlist/releases/tag/}"
-            decoded_tag="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.argv[1]))' "$tag")"
-            git check-ref-format "refs/tags/$decoded_tag" || {
+            python3 -c 'import subprocess, sys, urllib.parse
+tag = urllib.parse.unquote_to_bytes(sys.argv[1])
+if any(byte < 0x20 or byte == 0x7f for byte in tag):
+    sys.exit(1)
+sys.exit(subprocess.run([b"git", b"check-ref-format", b"refs/tags/" + tag], check=False).returncode)' "$tag" || {
               echo 'Release tag in release_notes_url is not a valid Git tag' >&2
               exit 1
             }
