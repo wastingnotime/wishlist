@@ -43,6 +43,7 @@ These checks validate local artifacts only. They do not publish images or establ
 
 ## Release blockers and external inputs
 
+- [ ] Establish and test the Wishlist PostgreSQL backup/restore baseline before public voting; [WNT-102](https://linear.app/wastingnotime/issue/WNT-102/wishlist-establish-and-test-postgresql-backup-and-restore-before) tracks infra-platform implementation, retention, an isolated restore drill, and deletion reconciliation after restore. The proposed platform contract is [Wishlist PostgreSQL backup and restore](https://github.com/wastingnotime/infra-platform/blob/main/docs/contracts/runtime/wishlist-backup-restore.md); its Terraform is under review in [infra-platform PR #716](https://github.com/wastingnotime/infra-platform/pull/716) and is not deployed, so no routine backup or successful restore is claimed yet.
 - [x] Complete the Wishlist candidate publish permission fix through [infra-platform issue #662](https://github.com/wastingnotime/infra-platform/issues/662) and [infra-platform PR #664](https://github.com/wastingnotime/infra-platform/pull/664).
 - [ ] Add the Wishlist application stack, production runtime settings, and reviewed promotion path in infra-platform.
 - [x] Create repository-local candidate integration validation for the API and web images, including a real-browser run against the built web image.
