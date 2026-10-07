@@ -18,6 +18,12 @@ This repository owns the WNT Wishlist web product and its domain simulation. Wis
 - Public API responses must not expose visitor email, OTP, session, or moderation data.
 - Do not copy WNT toolkit policy into the repository or depend on repository-local WNT installs.
 
+## Security Patch Proposals
+
+For Codex Security findings and remediation PRs, read
+`work/changes/2026-10-07-codex-security/workflow.md` for Wishlist threat-model
+context, patch scope, and validation expectations.
+
 ## Working Rules
 
 - Read `README.md` and the active change artifacts before extending product behavior.
