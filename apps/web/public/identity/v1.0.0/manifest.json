@@ -1,0 +1,21 @@
+{
+  "kit": "Forward W v1.0.0",
+  "source": "https://github.com/wastingnotime/wnt-design/tree/main/assets/identity/v1.0.0",
+  "copied_exports": [
+    "mark-green.svg",
+    "favicon.svg",
+    "favicon.ico",
+    "favicon-32.png",
+    "apple-touch-icon.png"
+  ],
+  "product_artwork": "wishlist-social.svg; rendered with rsvg-convert; Wishlist-specific composition retaining approved mark geometry",
+  "sha256": {
+    "apple-touch-icon.png": "8741bf1c09c620f4fb908877907f48382993414f1e315769def4acfee53dc21a",
+    "favicon-32.png": "325a6c6d17373b78d06a22eb9cf92558d9887743699a59179229a9269ea073f9",
+    "favicon.ico": "5f0a1164b53f49fbdaa5e3b5b6c1cef2ae392cd1ff9440ee6cb0ac20ec8ac4bf",
+    "favicon.svg": "706968b860b999a94ebc4c1dd9b4aa6adfda94e2b97c0140117c6e8f9d8c49e7",
+    "mark-green.svg": "6adc102236a0b4ef8263dd79b40514e6a2ca6e6d33755dd4d2bf14dc2f2da504",
+    "wishlist-social.png": "1fe7fa423b6cb95f5d42bb8adc331727f6d4f5ad1a04195d9bc30e7df7003350",
+    "wishlist-social.svg": "71db02515e1ab735a245198082558ecb172b035cfb3189d986026070c3de7059"
+  }
+}
