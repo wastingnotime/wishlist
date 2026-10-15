@@ -6,7 +6,7 @@
   --bg-soft: #090d0b;
   --panel: rgba(9, 13, 11, .78);
   --text: #b8c0bb;
-  --text-dim: #6f7772;
+  --text-dim: #929c95;
   --accent: #9cffaa;
   --accent-soft: rgba(156, 255, 170, .12);
   --line: rgba(156, 255, 170, .2);
@@ -32,7 +32,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .side-label-right::after { content: ""; display: inline-block; width: 1.2rem; height: 1px; margin-left: .8rem; vertical-align: middle; background: var(--accent); }
 .topbar { position: relative; z-index: 21; display: flex; min-height: 76px; align-items: center; justify-content: space-between; gap: 20px; padding: 0 clamp(24px, 6vw, 96px); border-bottom: 1px solid var(--line); background: rgba(5,7,6,.7); backdrop-filter: blur(10px); }
 .brand { display: inline-flex; align-items: center; gap: 14px; color: var(--accent); font-size: .78rem; letter-spacing: .16em; text-transform: lowercase; white-space: nowrap; }
-.brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line-bright); box-shadow: 0 0 18px rgba(156,255,170,.06); font-size: .65rem; }
+.brand-mark { display: block; width: 32px; height: 24px; margin: 4px; flex: none; }
 .header-actions { display: flex; align-items: center; gap: 20px; }
 .public-label, .eyebrow, .app-selector-label, .result-count { color: var(--text-dim); font-size: .68rem; letter-spacing: .2em; text-transform: lowercase; }
 .public-label { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
@@ -196,7 +196,7 @@ main { display: block; }
 @media (max-width: 680px) {
   .topbar { min-height: 68px; padding: 12px 20px; }
   .brand { gap: 8px; font-size: .63rem; letter-spacing: .05em; }
-  .brand-mark { width: 30px; height: 30px; }
+  .brand-mark { width: 32px; height: 24px; }
   .header-actions { gap: 8px; }
   .public-label { display: none; }
   .suggest-button, .signout-button { padding: 8px; font-size: .58rem; letter-spacing: 0; }
@@ -234,3 +234,9 @@ main { display: block; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+.maker-signature { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 3px; color: var(--accent); font-size: 14px; letter-spacing: normal; text-transform: none; }
+.maker-signature img { flex: none; margin: 3px; }
+.maker-signature span { text-decoration: underline; text-underline-offset: 3px; }
+.maker-signature:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (forced-colors: active) { .maker-signature:focus-visible { outline-color: Highlight; } }

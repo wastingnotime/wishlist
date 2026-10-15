@@ -1,3 +1,4 @@
+import { WishlistBrand, MakerSignature } from "../components/identity";
 import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { api } from "../lib/api";
 import { appPath } from "../lib/paths";
@@ -117,7 +118,7 @@ export default function Admin() {
   };
 
   return <main class="admin-shell">
-    <header class="admin-head"><a href={appPath("/")}>← Public Wishlist</a><span>WNT / ADMIN</span></header>
+    <header class="admin-head"><WishlistBrand /><span>Admin · <a href={appPath("/")}>Public board</a></span></header>
     <h1>Manage the wishlist</h1>
     <p class="admin-intro">Admin actions decide what becomes public and what moves into production. Votes remain a signal.</p>
     <Show when={adminSession().mode === "token"}><label class="admin-token">Admin access token<input type="password" autocomplete="off" disabled={!ready()} value={token()} onInput={event => setToken(event.currentTarget.value)} placeholder="Enter WISHLIST_ADMIN_TOKEN" /></label></Show>
@@ -148,5 +149,6 @@ export default function Admin() {
       </section>
       <section class="admin-panel admin-wide"><h2>Feature lifecycle</h2><div class="admin-feature-list"><For each={features()}>{feature => <article><div><strong>{feature.title}</strong><small>{feature.app_name} · {feature.vote_count} votes · {feature.status}</small></div><div class="lifecycle-actions"><button class="admin-secondary" onClick={() => void editFeature(feature)}>Edit</button><Show when={feature.status === "voting"}><button onClick={() => void changeStatus(feature, "producing")}>Move to Producing</button></Show><Show when={feature.status === "producing"}><button onClick={() => void changeStatus(feature, "delivered")}>Mark Delivered</button></Show><Show when={feature.status === "delivered"}><span>Delivered</span></Show></div></article>}</For></div></section>
     </Show>
+  <footer class="footer"><MakerSignature /></footer>
   </main>;
 }

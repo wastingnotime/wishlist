@@ -1,3 +1,4 @@
+import { WishlistBrand, MakerSignature } from "../components/identity";
 import { A } from "@solidjs/router";
 import { For, Show, createSignal, onMount } from "solid-js";
 import { ApiError, api } from "../lib/api";
@@ -102,7 +103,7 @@ export default function Privacy() {
   };
 
   return <div class="site-shell privacy-shell">
-    <header class="topbar"><a class="brand" href={appPath("/")} aria-label="Wasting No Time Wishlist home"><span class="brand-mark">wl</span><span>wnt / wishlist</span></a><A class="admin-nav-link" href="/">Back to board</A></header>
+    <header class="topbar"><WishlistBrand /><A class="admin-nav-link" href="/">Back to board</A></header>
     <main class="privacy-main">
       <p class="eyebrow">Wishlist visitor data</p><h1>Your privacy controls</h1>
       <p class="privacy-intro">See the email, votes, and private suggestions linked to your Wishlist account. Email verification protects these actions.</p>
@@ -125,6 +126,7 @@ export default function Privacy() {
       </>}</Show>
       <Show when={state() === "erased"}><section class="privacy-panel"><h2>Records deleted</h2><p>Your linked records were removed from the live Wishlist database and you were signed out. A future sign-in creates a new identity. If a published feature contains personal details, contact us for review.</p><A class="admin-nav-link" href="/">Return to board</A></section></Show>
       <p class="privacy-contact">For help, requests involving public feature text, or records outside the live Wishlist database, email <a href="mailto:privacy@wastingnotime.org">privacy@wastingnotime.org</a>.</p>
-    </main>
+    <footer class="footer"><MakerSignature /></footer>
+  </main>
   </div>;
 }
