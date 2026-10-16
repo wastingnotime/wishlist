@@ -71,7 +71,7 @@ try {
   await page.getByRole("link", { name: "Admin", exact: true }).click();
   await page.waitForURL(url => new URL(url).pathname === `${basePath}/admin`);
   assert.equal(new URL(page.url()).pathname, `${basePath}/admin`);
-  await page.getByRole("link", { name: "Public Wishlist" }).click();
+  await page.getByRole("link", { name: "Public board", exact: true }).click();
   await page.waitForURL(url => new URL(url).pathname.replace(/\/$/, "") === basePath);
   assert.equal(new URL(page.url()).pathname.replace(/\/$/, ""), basePath);
   basePathNavigationValidated = true;

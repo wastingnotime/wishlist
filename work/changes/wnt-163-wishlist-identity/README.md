@@ -57,3 +57,13 @@ This record proves local source and built-output behavior. Merge, candidate
 publication and infra-platform promotion are separate. WNT-166 must verify the
 final deployed revision, both entry URLs, asset responses and screenshots.
 Rollback restores the previous source revision; the versioned kit is immutable.
+
+## CI follow-up — candidate navigation selector
+
+[Run 38825878647](https://github.com/wastingnotime/wishlist/actions/runs/38825878647)
+failed because the built-image browser script still looked for the admin return
+link named `Public Wishlist`; the updated header names it `Public board`.
+Updated the exact role/name selector to match the rendered link. The existing
+base-path URL assertions and publication/persistence checks remain in place.
+`make integration` passed both phases locally with rebuilt API/web images,
+including navigation through privacy/admin and persistence after API restart.
